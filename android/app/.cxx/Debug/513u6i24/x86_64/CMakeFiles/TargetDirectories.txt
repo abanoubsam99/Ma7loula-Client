@@ -1,0 +1,2 @@
+/Users/ahmedmontasser/Desktop/Ma7loula-Client-main/android/app/.cxx/Debug/513u6i24/x86_64/CMakeFiles/edit_cache.dir
+/Users/ahmedmontasser/Desktop/Ma7loula-Client-main/android/app/.cxx/Debug/513u6i24/x86_64/CMakeFiles/rebuild_cache.dir

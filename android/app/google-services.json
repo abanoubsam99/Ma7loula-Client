@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "160217474119",
+    "project_id": "ma7lola-75b28",
+    "storage_bucket": "ma7lola-75b28.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160217474119:android:b3e5c161ebec781fdefd62",
+        "android_client_info": {
+          "package_name": "com.ma7lola.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJDeswaNtUoh5Pqk-Xc55mWoHOFgSdroM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
