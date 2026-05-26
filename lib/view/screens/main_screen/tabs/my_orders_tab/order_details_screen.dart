@@ -275,15 +275,42 @@ class _OrderDetailsState extends State<OrderDetails> {
                                     "Offered Total".tr(),
                                     Helpers.formatPrice(order.vendorLines!.first.offeredTotal??0).toString(),
                                   ),
-                                  if(order?.productsPrice!=null)
+                                  if (order?.productsPrice != null)
                                     _paymentDetails(
-                                    LocaleKeys.taxes.tr(),
-                                    Helpers.formatPrice(((order?.vendorLines!=null&& order!.vendorLines!.isNotEmpty&&order.vendorLines!.first.offeredTotal!=null)?(order.vendorLines!.first.offeredTotal??0):(order?.productsPrice??0))/(order?.taxPrice??0)).toString(),
-                                  ),
-                                   _paymentDetails(
+                                      LocaleKeys.taxes.tr(),
+                                      Helpers.formatPrice(
+                                        (
+                                            (
+                                                (order?.vendorLines != null &&
+                                                    order!.vendorLines!.isNotEmpty &&
+                                                    order.vendorLines!.first.offeredTotal != null)
+                                                    ? (order.vendorLines!.first.offeredTotal ?? 0)
+                                                    : (order?.productsPrice ?? 0)
+                                            ) *
+                                                ((order?.taxPrice ?? 0) / 100)
+                                        ),
+                                      ).toString(),
+                                    ),
+                                  _paymentDetails(
                                     LocaleKeys.total.tr(),
-                                    Helpers.formatPrice((order?.vendorLines!=null&& order!.vendorLines!.isNotEmpty&&order.vendorLines!.first.offeredTotal!=null)?order.vendorLines!.first.total:order?.total).toString(),
+                                    Helpers.formatPrice(
+                                      (order?.vendorLines != null &&
+                                          order!.vendorLines!.isNotEmpty &&
+                                          order.vendorLines!.first.offeredTotal != null)
+                                          ? (
+                                          (order.vendorLines!.first.offeredTotal ?? 0) +
+                                              (
+                                                  (order.vendorLines!.first.offeredTotal ?? 0) *
+                                                      ((order?.taxPrice ?? 0) / 100)
+                                              )
+                                      )
+                                          : (order?.total ?? 0),
+                                    ).toString(),
                                   ),
+                                  //  _paymentDetails(
+                                  //   LocaleKeys.total.tr(),
+                                  //   Helpers.formatPrice((order?.vendorLines!=null&& order!.vendorLines!.isNotEmpty&&order.vendorLines!.first.offeredTotal!=null)?order.vendorLines!.first.total:order?.total).toString(),
+                                  // ),
 
                                 ],
                               )),
@@ -398,6 +425,70 @@ class _OrderDetailsState extends State<OrderDetails> {
                             )),
                       ),
                     ],
+                    if (order?.vendorLines != null &&
+                        order!.vendorLines!.isNotEmpty &&
+                        order.vendorLines!.first.offeredTotal != null &&
+                        order?.status != 'cancelled' &&
+                        order?.status != "completed")
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.orange,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.local_offer_outlined,
+                              color: Colors.orange,
+                              size: 26,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Price Updated".tr(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15.sp,
+                                      color: Colors.orange.shade900,
+                                      fontFamily: ZainTextStyles.font,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "The vendor has sent a new offer with updated pricing. Please review and accept or cancel the offer."
+                                        .tr(),
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      color: Colors.black87,
+                                      fontFamily: ZainTextStyles.font,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${Helpers.formatPrice(order.productsPrice ?? 0)} ← ${Helpers.formatPrice(order.vendorLines!.first.offeredTotal ?? 0)} ${LocaleKeys.le.tr()}",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14.sp,
+                                      color: Colors.orange.shade900,
+                                      fontFamily: ZainTextStyles.font,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     // if (order?.status =="offer_pending")
                     if(order?.vendorLines!=null&& order!.vendorLines!.isNotEmpty&&order.vendorLines!.first.offeredTotal!=null&&order?.status != 'cancelled'&&order?.status!="completed")
                       Row(
@@ -1172,362 +1263,3 @@ class _OrderDetailsState extends State<OrderDetails> {
     await launchUrlString("sms://$vendorNum");
   }
 }
-
-/*
-  _emergencyWidget() {
-    return FutureBuilder<em.CreateEmergencyOrderModel>(
-        future: MiscellaneousApi.getEmergencyDetails(
-            locale: context.locale, id: widget.orderNum),
-        builder: (context, snapshot) {
-          if (snapshot.data == null) {
-            return Center(
-              child: CircularProgressIndicator(
-                color: ColorsPalette.primaryColor,
-              ),
-            );
-          }
-
-          final orderDetails = snapshot.data!;
-
-          if (orderDetails.data == null) {
-            return SizedBox.shrink();
-          }
-          final order = orderDetails.data?.order;
-          final color = _getColors(order?.status);
-
-          return Scaffold(
-              backgroundColor: ColorsPalette.lightGrey,
-              appBar: AppBarApp(
-                title: '${LocaleKeys.orderNumber.tr()} ${widget.orderNum}',
-                actions: [
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    margin: EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                        color: color.first,
-                        borderRadius: BorderRadius.circular(25.sp)),
-                    child: Text(
-                      order?.status ?? '',
-                      style: TextStyle(
-                          color: ColorsPalette.black,
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: ZainTextStyles.font),
-                    ),
-                  ),
-                ],
-              ),
-              body: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                          color: ColorsPalette.white,
-                          borderRadius: BorderRadius.circular(10)),
-                      padding: EdgeInsets.all(10),
-                      margin: EdgeInsets.all(10),
-                      child: Row(
-                        children: [
-                          SvgPicture.asset(AssetsManager.carShape),
-                          UtilValues.gap8,
-                          Text(
-                            (order?.userCar != null)
-                                ? '${order?.userCar?.car?.model?.brand?.name} ${order?.userCar?.car?.model?.name} ${order?.userCar?.car?.year}'
-                                : '----',
-                            style: TextStyle(
-                                color: ColorsPalette.black,
-                                fontWeight: FontWeight.w400,
-                                fontFamily: ZainTextStyles.font,
-                                fontSize: 14.sp),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _vendorCard(
-                        order?.vendor?.name ?? '', order?.id.toString() ?? ''),
-                    UtilValues.gap8,
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            LocaleKeys.addressSelected.tr(),
-                            style: TextStyle(
-                                color: ColorsPalette.black,
-                                fontWeight: FontWeight.w400,
-                                fontFamily: ZainTextStyles.font,
-                                fontSize: 14.sp),
-                          ),
-                          UtilValues.gap4,
-                          Builder(builder: (context) {
-                            final userProvider = context.read<UserProvider>();
-                            if (userProvider.user != null) {
-                              address =
-                                  userProvider.user?.data?.user?.defaultAddress;
-                              if (address != null) {
-                                return CustomCard(
-                                  color: ColorsPalette.white,
-                                  border: Border.all(color: ColorsPalette.grey),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: AddressCard(
-                                    name: address?.name ?? '',
-                                    city: address?.city?.name ?? '',
-                                    details: address?.details ?? '',
-                                    selected: false,
-                                    // fromCheckout: true,
-                                  ),
-                                );
-                              }
-                            }
-                            return SizedBox.shrink();
-                          }),
-                          UtilValues.gap8,
-                          Text(
-                            LocaleKeys.paymentData.tr(),
-                            style: TextStyle(
-                                color: ColorsPalette.black,
-                                fontWeight: FontWeight.w400,
-                                fontFamily: ZainTextStyles.font,
-                                fontSize: 14.sp),
-                          ),
-                          UtilValues.gap4,
-                          CustomCard(
-                            border: Border.all(color: ColorsPalette.grey),
-                            color: ColorsPalette.white,
-                            child: Column(
-                              children: [
-                                _orderDetails(LocaleKeys.orderDate.tr(),
-                                    */
-/* order?.deliveryTime ?? */ /*
- ''),
-                                _orderDetails(LocaleKeys.onTheWay.tr(),
-                                    */
-/*order?.deliveryTime ??*/ /*
- ''),
-                                _orderDetails(LocaleKeys.deliveryDate.tr(),
-                                    */
-/* order?.deliveryTime ??*/ /*
- ''),
-                              ],
-                            ),
-                          ),
-                          UtilValues.gap8,
-                          Text(
-                            LocaleKeys.paymentData.tr(),
-                            style: TextStyle(
-                                color: ColorsPalette.black,
-                                fontWeight: FontWeight.w400,
-                                fontFamily: ZainTextStyles.font,
-                                fontSize: 14.sp),
-                          ),
-                          UtilValues.gap4,
-                          CustomCard(
-                              border: Border.all(color: ColorsPalette.grey),
-                              color: ColorsPalette.white,
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        LocaleKeys.paymentMethod.tr(),
-                                        style: TextStyle(
-                                            color: ColorsPalette.customGrey,
-                                            fontWeight: FontWeight.w400,
-                                            fontFamily: ZainTextStyles.font,
-                                            fontSize: 14.sp),
-                                      ),
-                                      Spacer(),
-                                      Text(
-                                        (order?.paymentMethod == 0 ||
-                                                order?.paymentMethod == 2)
-                                            ? LocaleKeys.cash.tr()
-                                            : LocaleKeys.credit.tr(),
-                                        style: TextStyle(
-                                            color: ColorsPalette.black,
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: ZainTextStyles.font,
-                                            fontSize: 14.sp),
-                                      ),
-                                      UtilValues.gap4,
-                                      SvgPicture.asset(
-                                        (order?.paymentMethod == 0 ||
-                                                order?.paymentMethod == 2)
-                                            ? AssetsManager.cash
-                                            : AssetsManager.masterCard,
-                                      ),
-                                    ],
-                                  ),
-                                  _paymentDetails(
-                                    LocaleKeys.total.tr(),
-                                    Helpers.formatPrice(order?.total)
-                                        .toString(),
-                                  ),
-                                ],
-                              )),
-                        ],
-                      ),
-                    ),
-                    UtilValues.gap8,
-                    if (order?.rate != null) ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text(
-                          LocaleKeys.rate.tr(),
-                          style: TextStyle(
-                              color: ColorsPalette.black,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: ZainTextStyles.font,
-                              fontSize: 14.sp),
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8.0),
-                        child: CustomCard(
-                            border: Border.all(color: ColorsPalette.grey),
-                            color: ColorsPalette.white,
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      LocaleKeys.rateService.tr(),
-                                      style: TextStyle(
-                                          color: ColorsPalette.customGrey,
-                                          fontWeight: FontWeight.w400,
-                                          fontFamily: ZainTextStyles.font,
-                                          fontSize: 14.sp),
-                                    ),
-                                    Spacer(),
-                                    AnimatedRatingStars(
-                                      readOnly: true,
-                                      initialRating: order?.rate?.services !=
-                                              null
-                                          ? double.parse(order?.rate?.services
-                                                  ?.toString() ??
-                                              '')
-                                          : 2.2,
-                                      onChanged: (rating) {},
-                                      displayRatingValue:
-                                          true, // Display the rating value
-                                      interactiveTooltips:
-                                          true, // Allow toggling half-star state
-                                      customFilledIcon: Icons.star,
-                                      customHalfFilledIcon: Icons.star_half,
-                                      customEmptyIcon: Icons.star_border,
-                                      starSize: 15.0,
-                                      animationDuration:
-                                          const Duration(milliseconds: 500),
-                                      animationCurve: Curves.easeInOut,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            )),
-                      ),
-                    ],
-                    if (order?.status != 'cancelled')
-                      Container(
-                        // color: ColorsPalette.white,
-                        padding: UtilValues.padding16,
-                        child: Container(
-                          // padding: EdgeInsets.symmetric(vertical: 2.h),
-                          margin: EdgeInsets.all(1.sp),
-                          height: 6.h,
-                          child: ElevatedButton(
-                            onPressed: cancelOrder,
-                            style: ButtonStyle(
-                              textStyle: MaterialStateProperty.all<TextStyle>(
-                                TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: ColorsPalette.black,
-                                  fontFamily: ZainTextStyles.font,
-                                  fontSize: 14.sp,
-                                ),
-                              ),
-                              shape: MaterialStateProperty.all<
-                                  RoundedRectangleBorder>(
-                                RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: const BorderSide(
-                                      color: ColorsPalette.black),
-                                ),
-                              ),
-                              backgroundColor: MaterialStateProperty.all<Color>(
-                                  ColorsPalette.lighttGrey),
-                              foregroundColor: MaterialStateProperty.all<Color>(
-                                  ColorsPalette.lighttGrey),
-                            ),
-                            child: Center(
-                              child: Text(
-                                LocaleKeys.cancelOrder.tr(),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: ColorsPalette.black,
-                                    fontFamily: ZainTextStyles.font,
-                                    fontSize: 14.sp),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (order?.status == 'cancelled') UtilValues.gap16,
-                    if (order?.rate == null)
-                      Container(
-                        // color: ColorsPalette.white,
-                        padding:
-                            EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                        child: Container(
-                          // padding: EdgeInsets.symmetric(vertical: 2.h),
-                          margin: EdgeInsets.all(1.sp),
-                          height: 6.h,
-                          child: ElevatedButton(
-                            onPressed: _showDialog,
-                            style: ButtonStyle(
-                              textStyle: MaterialStateProperty.all<TextStyle>(
-                                TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: ColorsPalette.black,
-                                  fontFamily: ZainTextStyles.font,
-                                  fontSize: 14.sp,
-                                ),
-                              ),
-                              shape: MaterialStateProperty.all<
-                                  RoundedRectangleBorder>(
-                                RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  side: const BorderSide(
-                                      color: ColorsPalette.black),
-                                ),
-                              ),
-                              backgroundColor: MaterialStateProperty.all<Color>(
-                                  ColorsPalette.lighttGrey),
-                              foregroundColor: MaterialStateProperty.all<Color>(
-                                  ColorsPalette.lighttGrey),
-                            ),
-                            child: Center(
-                              child: Text(
-                                LocaleKeys.rateOrder.tr(),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: ColorsPalette.black,
-                                    fontFamily: ZainTextStyles.font,
-                                    fontSize: 14.sp),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ));
-        });
-  }
-*/

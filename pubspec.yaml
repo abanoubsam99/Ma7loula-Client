@@ -109,10 +109,10 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/newlogo.png"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFFFF"
-  adaptive_icon_foreground: "assets/icon/adaptive_icon_foreground.png"
+  adaptive_icon_foreground: "assets/icon/newlogo.png"
 
 #
 #flutter_native_splash:

@@ -435,7 +435,11 @@
     "OpeningGoogleMaps": "فتح خرائط جوجل",
     "kilo": "كيلو",
   "Offered Total": "إجمالي العرض",
-  "pending_customer": "في انتظار العميل"
+  "pending_customer": "في انتظار العميل",
+  "Accept Offer": "قبول العرض",
+  "Cancel Offer": "إلغاء العرض",
+  "Price Updated": "تم تحديث السعر",
+  "The vendor has sent a new offer with updated pricing. Please review and accept or cancel the offer.": "قام المورّد بإرسال عرض جديد بسعر محدث، يرجى مراجعة العرض ثم قبوله أو إلغاؤه."
 
 
 }

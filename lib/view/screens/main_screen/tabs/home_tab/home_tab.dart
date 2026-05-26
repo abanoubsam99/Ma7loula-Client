@@ -166,6 +166,9 @@ class _HomeTabState extends State<HomeTab> {
     return WillPopScope(
       onWillPop: () => _doubleBackToExit(context),
       child: UpgradeAlert(
+        barrierDismissible: false,
+        showIgnore: false,
+        showLater: false,
         child: Scaffold(
           backgroundColor: ColorsPalette.white,
           appBar: CustomAppBar(

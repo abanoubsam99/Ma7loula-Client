@@ -432,5 +432,9 @@
     "kilo": "kilo",
     "OpeningGoogleMaps": "Opening GoogleMaps",
   "Offered Total": "Offered Total",
-  "pending_customer": "Pending Customer"
+  "pending_customer": "Pending Customer",
+  "Accept Offer": "Accept Offer",
+  "Cancel Offer": "Cancel Offer",
+  "Price Updated": "Price Updated",
+  "The vendor has sent a new offer with updated pricing. Please review and accept or cancel the offer.": "The vendor has sent a new offer with updated pricing. Please review and accept or cancel the offer."
 }
