@@ -71,7 +71,7 @@ dependencies:
 #  smooth_star_rating_null_safety: ^1.0.4+2
 #  modal_progress_hud_nsn: ^0.5.1
   flutter_calendar_carousel:
-  cloud_firestore:
+#  cloud_firestore:
   animated_rating_stars: ^1.0.1
 #  camera: ^0.10.0
 #  google_mlkit_text_recognition: ^0.14.0

@@ -152,13 +152,13 @@ class ProfileTab extends StatelessWidget {
                           Navigator.pushNamed(context, TermsScreen.routeName);
                         },
                       ),
-                      UtilValues.gap8,
-                      ProfileTabItem(
-                        icon: AssetsManager.text,
-                        label: LocaleKeys.help.tr(),
-                        onTap: () => Navigator.of(context)
-                            .pushNamed(ChatScreen.routeName),
-                      ),
+                      // UtilValues.gap8,
+                      // ProfileTabItem(
+                      //   icon: AssetsManager.text,
+                      //   label: LocaleKeys.help.tr(),
+                      //   onTap: () => Navigator.of(context)
+                      //       .pushNamed(ChatScreen.routeName),
+                      // ),
                       if (userProvider.isLoggedIn) ...[
                         UtilValues.gap8,
                         ProfileTabItem(
