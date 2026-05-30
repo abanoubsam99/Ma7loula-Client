@@ -31,7 +31,7 @@ class _MyOrdersTabState extends State<MyOrdersTab>
   final PagingController<int, Orders> _pagingControllerForAll =
       PagingController(firstPageKey: 1);
 
-  int ordersLength = 0;
+  num ordersLength = 0;
   Future<void> _fetchPage(int pageKey) async {
     try {
       final userProvider = context.read<UserProvider>();

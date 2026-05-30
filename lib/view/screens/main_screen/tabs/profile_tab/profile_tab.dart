@@ -167,6 +167,14 @@ class ProfileTab extends StatelessWidget {
                           onTap: () => _logout(context),
                         ),
                       ],
+                      if (userProvider.isLoggedIn) ...[
+                        UtilValues.gap8,
+                        ProfileTabItem(
+                          icon: AssetsManager.delete,
+                          label: LocaleKeys.deleteAccount.tr(),
+                          onTap: () => _deleteAccount(context),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -205,7 +213,7 @@ class ProfileTab extends StatelessWidget {
                     textAlign: TextAlign.center,
                   ),
                 ],
-                UtilValues.gap64
+                UtilValues.gap64,
               ],
             ),
           );

@@ -23,6 +23,63 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160217474119:android:5d8da7bf9d1fd4ccdefd62",
+        "android_client_info": {
+          "package_name": "com.ma7lola.ma7lolaclient"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJDeswaNtUoh5Pqk-Xc55mWoHOFgSdroM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160217474119:android:45dd3b6afcccc362defd62",
+        "android_client_info": {
+          "package_name": "com.ma7lola.ma7lolavendor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJDeswaNtUoh5Pqk-Xc55mWoHOFgSdroM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160217474119:android:4260a15a17a4dd6fdefd62",
+        "android_client_info": {
+          "package_name": "com.ma7lola.vendor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJDeswaNtUoh5Pqk-Xc55mWoHOFgSdroM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

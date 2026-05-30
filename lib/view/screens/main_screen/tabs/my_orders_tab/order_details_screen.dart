@@ -41,6 +41,8 @@ class OrderDetails extends StatefulWidget {
 
 class _OrderDetailsState extends State<OrderDetails> {
   bool _isLoading = false;
+  bool _isAccepting = false;
+  bool _isCancelling = false;
 
   DefaultAddress? address;
   var prices;
@@ -502,7 +504,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                                 margin: EdgeInsets.all(1.sp),
                                 height: 6.h,
                                 child: ElevatedButton(
-                                  onPressed: (){
+                                  onPressed: _isAccepting || _isCancelling ? null : (){
                                     actionOffersOrder(order.vendorLines!.first.orderVendorId.toString());
                                   },
                                   style: ButtonStyle(
@@ -525,7 +527,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                                     foregroundColor: MaterialStateProperty.all<Color>(ColorsPalette.lighttGrey),
                                   ),
                                   child: Center(
-                                    child: Text(
+                                    child: _isAccepting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: ColorsPalette.black, strokeWidth: 2)) : Text(
                                       "Accept Offer".tr(),
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
@@ -549,7 +551,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                                 margin: EdgeInsets.all(1.sp),
                                 height: 6.h,
                                 child: ElevatedButton(
-                                  onPressed: cancelOrder,
+                                  onPressed: _isCancelling || _isAccepting ? null : cancelOrder,
                                   style: ButtonStyle(
                                     textStyle: MaterialStateProperty.all<TextStyle>(
                                       TextStyle(
@@ -573,7 +575,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                                         ColorsPalette.lighttGrey),
                                   ),
                                   child: Center(
-                                    child: Text(
+                                    child: _isCancelling ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: ColorsPalette.black, strokeWidth: 2)) : Text(
                                       "Cancel Offer".tr(),
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
@@ -598,7 +600,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                           margin: EdgeInsets.all(1.sp),
                           height: 6.h,
                           child: ElevatedButton(
-                            onPressed: cancelOrder,
+                            onPressed: _isCancelling || _isAccepting ? null : cancelOrder,
                             style: ButtonStyle(
                               textStyle: MaterialStateProperty.all<TextStyle>(
                                 TextStyle(
@@ -622,7 +624,7 @@ class _OrderDetailsState extends State<OrderDetails> {
                                   ColorsPalette.lighttGrey),
                             ),
                             child: Center(
-                              child: Text(
+                              child: _isCancelling ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: ColorsPalette.black, strokeWidth: 2)) : Text(
                                 LocaleKeys.cancelOrder.tr(),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
@@ -690,9 +692,43 @@ class _OrderDetailsState extends State<OrderDetails> {
   }
 
   void actionOffersOrder(String order_vendor_id) async {
+    setState(() {
+      _isAccepting = true;
+    });
     try {
-      await MiscellaneousApi.CarPartsRespondVendorOffer(
-          locale: context.locale, order_vendor_id: widget.orderNum.toString(),action:"accept");
+       if (widget.orderType == 0) {
+         await MiscellaneousApi.CarPartsRespondVendorOffer(
+             locale: context.locale, order_vendor_id: order_vendor_id,action:"accept",type: "battery" );
+         await MiscellaneousApi.getTiresOrderDetails(
+             locale: context.locale, id: widget.orderNum);
+       }else  if (widget.orderType == 1) {
+         await MiscellaneousApi.CarPartsRespondVendorOffer(
+             locale: context.locale, order_vendor_id: order_vendor_id,action:"accept",type: "tire" );
+         await MiscellaneousApi.getTiresOrderDetails(
+             locale: context.locale, id: widget.orderNum);
+       }else  {
+         await MiscellaneousApi.CarPartsRespondVendorOffer(
+             locale: context.locale, order_vendor_id: order_vendor_id,action:"accept",type: "car-parts" );
+         await MiscellaneousApi.getTiresOrderDetails(
+             locale: context.locale, id: widget.orderNum);
+       }
+
+      /*
+      *      future: (widget.orderType == 0)
+            ? MiscellaneousApi.getBatteryOrderDetails(
+                locale: context.locale, id: widget.orderNum)
+            : (widget.orderType == 1)
+                ? MiscellaneousApi.getTiresOrderDetails(
+                    locale: context.locale, id: widget.orderNum)
+                : (widget.orderType == 2)
+                    ? MiscellaneousApi.getCarPartsOrderDetails(
+                        locale: context.locale, id: widget.orderNum)
+                    : (widget.orderType == 3)
+                        ? MiscellaneousApi.getWinchDetails(
+                            locale: context.locale, id: widget.orderNum)
+                        : MiscellaneousApi.getEmergencyDetails(
+                            locale: context.locale, id: widget.orderNum),
+      * */
       // if (widget.orderType == 0) {
       //   await MiscellaneousApi.CarPartsRespondVendorOffer(
       //       order_vendor_id: widget.orderNum.toString(), locale: context.locale,action:"accept");
@@ -719,7 +755,9 @@ class _OrderDetailsState extends State<OrderDetails> {
       //   await MiscellaneousApi.getEmergencyDetails(
       //       locale: context.locale, id: widget.orderNum);
       // }
-      setState(() {});
+      setState(() {
+        _isAccepting = false;
+      });
       showSnackbar(
         context: context,
         status: SnackbarStatus.success,
@@ -727,6 +765,9 @@ class _OrderDetailsState extends State<OrderDetails> {
       );
       // Navigator.pop(context);
     } catch (e) {
+      setState(() {
+        _isAccepting = false;
+      });
       showSnackbar(
         context: context,
         status: SnackbarStatus.error,
@@ -735,6 +776,9 @@ class _OrderDetailsState extends State<OrderDetails> {
     }
   }
   void cancelOrder() async {
+    setState(() {
+      _isCancelling = true;
+    });
     try {
       if (widget.orderType == 0) {
         await MiscellaneousApi.cancelBatteryOrder(
@@ -762,7 +806,9 @@ class _OrderDetailsState extends State<OrderDetails> {
         await MiscellaneousApi.getEmergencyDetails(
             locale: context.locale, id: widget.orderNum);
       }
-      setState(() {});
+      setState(() {
+        _isCancelling = false;
+      });
       showSnackbar(
         context: context,
         status: SnackbarStatus.success,
@@ -770,6 +816,9 @@ class _OrderDetailsState extends State<OrderDetails> {
       );
       // Navigator.pop(context);
     } catch (e) {
+      setState(() {
+        _isCancelling = false;
+      });
       showSnackbar(
         context: context,
         status: SnackbarStatus.error,

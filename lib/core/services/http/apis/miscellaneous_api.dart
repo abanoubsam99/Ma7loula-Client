@@ -2516,24 +2516,40 @@ static Future<ImageModel> uploadAudio(
     required String order_vendor_id,
     required String action,
     required Locale locale,
+    required String type,
   }) async {
+    print("order_vendor_id= $order_vendor_id");
+
     try {
       final token = await SecureStorageService.instance
           .readString(key: SecureStorageKeys.token);
+
       final response = await ApiClient.instance.dio.post(
+        // carPartsRespondVendorOfferEndPoint,
+        carPartsRespondVendorOfferEndPoint(type),
         data: {
           "order_vendor_id": order_vendor_id,
-          "action": action // accept or reject
+          "action": action,
         },
-        carPartsRespondVendorOfferEndPoint,
-        options: Options(headers: {
-          'Authorization': 'Bearer $token',
-          'lang': locale.languageCode,
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'lang': locale.languageCode,
+          },
+        ),
       );
+
       return TaxAndHideServiceModel.fromJson(response.data);
-    } catch (error) {
-      rethrow;
+
+    } on DioException catch (e) {
+
+      final errorMessage =
+          e.response?.data?['message'] ?? "Something went wrong";
+
+      throw ApiException(errorMessage);
+
+    } catch (e) {
+      throw ApiException(e.toString());
     }
   }
 }

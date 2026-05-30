@@ -30,7 +30,7 @@ class Pagination {
   int? page;
   int? ofPages;
   int? perPage;
-  int? total;
+  num? total;
 
   Pagination({this.page, this.ofPages, this.perPage, this.total});
 
@@ -83,9 +83,9 @@ class Orders {
   String? myLocText;
   var paymentMethod;
   var productsPrice;
-  int? servicesPrice;
-  int? taxPrice;
-  int? deliveryPrice;
+  num? servicesPrice;
+  num? taxPrice;
+  num? deliveryPrice;
   var total;
   String? createdAt;
   UserCar? userCar;

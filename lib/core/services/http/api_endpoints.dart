@@ -81,4 +81,5 @@ const String rejectOfferEndPoint = '/client/winch/reject-offer';
 const String acceptOfferEmergencyEndPoint = '/client/emergency/accept-offer';
 const String rejectOfferEmergencyEndPoint = '/client/emergency/reject-offer';
 const String taxAndHideServiceEndPoint = '/start';
-const String carPartsRespondVendorOfferEndPoint = '/client/car-parts/respond-vendor-offer';
+ String carPartsRespondVendorOfferEndPoint (String type)=> '/client/$type/respond-vendor-offer';
+// const String carPartsRespondVendorOfferEndPoint = '/client/car-parts/respond-vendor-offer';
