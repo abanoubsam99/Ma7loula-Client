@@ -1,12 +1,24 @@
+﻿import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 
 import '../../firebase_options.dart';
-import '../../view/screens/main_screen/tabs/my_orders_tab/order_details_screen.dart';
 import '../widgets/order_alert_screen.dart';
 
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  final helper = NotificationsHelper();
+  await helper._ensureBackgroundReady();
+  await helper.processIncomingMessage(message);
+}
 
 class NotificationsHelper {
   static final NotificationsHelper _instance = NotificationsHelper._internal();
@@ -16,6 +28,23 @@ class NotificationsHelper {
 
   FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   
+  static const String orderChannelId = 'order_alerts_channel';
+  static const String visitChannelId = 'visit_alerts_channel';
+
+  /// معرف ثابت — كل إشعار جديد يستبدل السابق (إشعار واحد فقط في الشريط)
+  static const int _alertNotificationId = 9001;
+
+  /// نمط اهتزاز قوي ومكرر
+  static final Int64List _strongVibrationPattern = Int64List.fromList([
+    0, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1500,
+  ]);
+
+  static Map<String, dynamic>? _pendingAlertData;
+  static String? _lastProcessedAlertKey;
+  static DateTime? _lastProcessedAt;
+  static bool _isAlertScreenOpen = false;
+  static String? _openAlertOrderKey;
+
   // Global Navigator Key للوصول للـ context من أي مكان
   static GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -31,9 +60,17 @@ class NotificationsHelper {
     await _getFCMToken();
   }
 
+  /// يستدعى بعد أول إطار عندما يكون الـ Navigator جاهزا
+  Future<void> handleLaunchNotification() async {
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _handleNotificationOpenedApp(initialMessage);
+    }
+  }
+
   /// Initialize Firebase
   Future<void> _initializeFirebase() async {
-    // التحقق إذا كان Firebase مُهيأ بالفعل
+    // التحقق إذا كان Firebase مهيأ بالفعل
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -78,33 +115,78 @@ class NotificationsHelper {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // إنشاء قناة إشعارات عالية الأهمية للطلبات
-    const AndroidNotificationChannel orderChannel = AndroidNotificationChannel(
-      'order_alerts_channel',
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    final AndroidNotificationChannel orderChannel = AndroidNotificationChannel(
+      orderChannelId,
       'طلبات التوصيل',
       description: 'إشعارات الطلبات الجديدة للمندوبين',
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
+      vibrationPattern: _strongVibrationPattern,
       showBadge: true,
+      enableLights: true,
+      ledColor: const Color.fromARGB(255, 255, 0, 0),
     );
 
-    // إنشاء قناة إشعارات للزيارات
-    const AndroidNotificationChannel visitChannel = AndroidNotificationChannel(
-      'visit_alerts_channel',
+    final AndroidNotificationChannel visitChannel = AndroidNotificationChannel(
+      visitChannelId,
       'مواعيد الزيارات',
       description: 'تنبيهات مواعيد الزيارات للمندوبين',
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
+      vibrationPattern: _strongVibrationPattern,
+      showBadge: true,
+      enableLights: true,
+      ledColor: const Color.fromARGB(255, 255, 165, 0),
+    );
+
+    await androidPlugin?.createNotificationChannel(orderChannel);
+    await androidPlugin?.createNotificationChannel(visitChannel);
+  }
+
+  /// تهيئة الإشعارات المحلية في الـ background isolate
+  Future<void> _ensureBackgroundReady() async {
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings iOSSettings = DarwinInitializationSettings();
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iOSSettings,
+    );
+
+    await flutterLocalNotificationsPlugin.initialize(settings);
+
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    final AndroidNotificationChannel orderChannel = AndroidNotificationChannel(
+      orderChannelId,
+      'طلبات التوصيل',
+      description: 'إشعارات الطلبات الجديدة للمندوبين',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: _strongVibrationPattern,
       showBadge: true,
     );
 
-    final plugin = flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    
-    await plugin?.createNotificationChannel(orderChannel);
-    await plugin?.createNotificationChannel(visitChannel);
+    final AndroidNotificationChannel visitChannel = AndroidNotificationChannel(
+      visitChannelId,
+      'مواعيد الزيارات',
+      description: 'تنبيهات مواعيد الزيارات للمندوبين',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: _strongVibrationPattern,
+      showBadge: true,
+    );
+
+    await androidPlugin?.createNotificationChannel(orderChannel);
+    await androidPlugin?.createNotificationChannel(visitChannel);
   }
 
   /// Setup listeners for Firebase Cloud Messaging
@@ -113,8 +195,7 @@ class NotificationsHelper {
     FirebaseMessaging.onMessage.listen(_handleIncomingNotification);
 
     // Handle background messages (when app is closed or in background)
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     // Handle when notification is tapped
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpenedApp);
   }
@@ -122,248 +203,211 @@ class NotificationsHelper {
   /// Handle when notification is opened from background
   void _handleNotificationOpenedApp(RemoteMessage message) {
     print("📱 فتح التطبيق من الإشعار: ${message.data}");
-    
-    final context = navigatorKey.currentContext;
-    if (context == null) return;
+    if (!_isActionableAlert(message.data)) return;
+    _pendingAlertData = Map<String, dynamic>.from(message.data);
+    _openAlertFromData(message.data);
+  }
 
-    // الحصول على النوع من الـ data أو من محتوى الإشعار
-    final status = message.data['status']?.toString() ;
-    // final status = message.data['status']?.toString() ??
-    //              (message.notification != null ? _getNotificationType(message.notification!) : '');
+  static bool _isActionableAlert(Map<String, dynamic> data) {
+    if (data.isEmpty) return false;
+    final status = data['status']?.toString();
+    return status == 'new' ||
+        status == 'pending_customer' ||
+        status == 'offer_pending';
+  }
 
-    if (status!=null && (status == 'new'||status == 'pending_customer'||status == 'offer_pending')) {
-      // final orderId = message.data['order_id']?.toString() ?? (message.notification != null ? _extractOrderId(message.notification!.title) : '');
-      // final orderModel = _findOrderModel(orderId);
-      //
-      if (message.data!=null && message.data['order_id'] != null) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => OrderDetails(orderNum: int.parse(message.data['order_id'].toString()),orderType: 0,),
-          ),
-        );
-        _showFullScreenOrderAlert(message.data!);
-      } else if (message.data != null&&message.data["status"]) {
-        // Backup
-        _showFullScreenOrderAlert(message.data!);
-      }
+  static String _alertDedupeKey(Map<String, dynamic> data) {
+    final orderId = data['order_vendor_id']?.toString() ?? '';
+    final status = data['status']?.toString() ?? '';
+    final eventType = data['event_type']?.toString() ?? '';
+    return '$orderId|$status|$eventType';
+  }
+
+  bool _shouldProcessAlert(Map<String, dynamic> data) {
+    if (!_isActionableAlert(data)) return false;
+    final key = _alertDedupeKey(data);
+    final now = DateTime.now();
+    if (_lastProcessedAlertKey == key &&
+        _lastProcessedAt != null &&
+        now.difference(_lastProcessedAt!) < const Duration(seconds: 5)) {
+      return false;
     }
+    _lastProcessedAlertKey = key;
+    _lastProcessedAt = now;
+    return true;
+  }
+
+  void _openAlertFromData(Map<String, dynamic> data) {
+    if (!_isActionableAlert(data)) return;
+    _pendingAlertData = Map<String, dynamic>.from(data);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showFullScreenOrderAlert(data);
+    });
   }
 
   /// Handle incoming FCM notifications when the app is in the foreground
   void _handleIncomingNotification(RemoteMessage message) {
-    if (message.data!=null) {
-      _handleDataMessage(message.notification!);
+    processIncomingMessage(message, showFullScreen: true);
+  }
+
+  /// معالجة الإشعار الوارد (foreground / background)
+  Future<void> processIncomingMessage(
+    RemoteMessage message, {
+    bool showFullScreen = false,
+  }) async {
+    if (message.data.isEmpty || !_shouldProcessAlert(message.data)) return;
+
+    final title = message.notification?.title ??
+        message.data['title']?.toString() ??
+        'طلب توصيل جديد 🚨';
+    final body = message.notification?.body ??
+        message.data['body']?.toString() ??
+        'لديك إشعار جديد يحتاج انتباهك';
+    final type = _resolveNotificationType(message.data, title, body);
+
+    _pendingAlertData = Map<String, dynamic>.from(message.data);
+
+    final hasContext = navigatorKey.currentContext != null;
+
+    // التطبيق مفتوح: افتح صفحة التنبيه مباشرة (صوت واهتزاز من الشاشة نفسها)
+    if (showFullScreen && hasContext) {
+      _openAlertFromData(message.data);
+      return;
     }
-  }
 
-  /// Handle FCM data messages (background or foreground)
-  void _handleDataMessage(RemoteNotification data) {
-    // _showFullScreenOrderAlert(data);
-
-    // // التحقق من نوع الإشعار
-    // // final notificationType = _getNotificationType(data);
-    //
-    // if (data !=null &&(data[""]) 'visit') {
-    //   // عرض Full Screen Alert للزيارة
-    //   _showFullScreenVisitAlert(data);
-    // } else {
-    //   // عرض Full Screen Alert للطلب الجديد
-    //   _showFullScreenOrderAlert(data);
-    // }
-  }
-  
-  // /// تحديد نوع الإشعار (طلب أو زيارة)
-  // String _getNotificationType(RemoteNotification data) {
-  //   // يمكن التحقق من العنوان أو محتوى الإشعار
-  //   final title = data.title?.toLowerCase() ?? '';
-  //   final body = data.body?.toLowerCase() ?? '';
-  //
-  //   if (title.contains('زيارة') || title.contains('visit') ||
-  //       body.contains('زيارة') || body.contains('visit')) {
-  //     return 'visit';
-  //   }
-  //   return 'order';
-  // }
-
-  /// عرض Full Screen Alert للطلب الجديد
-  void _showFullScreenOrderAlert(Map<String, dynamic> data) {
-    final context = navigatorKey.currentContext;
-    if (context != null) {
-      // استخراج order_id من الإشعار
-      // final orderId = _extractOrderId(data.title);
-      
-      // // محاولة إيجاد OrderModel من القائمة
-      // OrderModel? orderModel = _findOrderModel(orderId);
-      //
-      if(data!=null)
-      // فتح شاشة Full Screen Alert
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => OrderAlertScreen(
-            notificationData: NotificationData(
-                eventType: '${data["event_type"].toString()}',
-                actionRequiredFor: '${data["action_required_for"].toString()}',
-                kind: '${data["kind"].toString()}',
-                orderId: '${data["order_id"].toString()}',
-                status: '${data["status"].toString()}',
-                orderVendorStatus: '${data["order_vendor_status"].toString()}',
-                orderVendorId: '${data["order_vendor_id"].toString()}',
-                type: '${data["type"].toString()}',
-                offeredTotal: '${data["offered_total"].toString()}',
-                vendorId: '${data["vendor_id"].toString()}'
-            ),
-            orderId: "${data["order_id"].toString()}",
-            orderReference: data["title"] ?? 'N/A',
-            customerName: _extractCustomerName(data["body"]),
-            location: _extractLocation(data["body"]),
-            orderDetails: data["body"],
-            // orderModel: orderModel, // تمرير OrderModel إذا وُجد
-          ),
-          fullscreenDialog: true,
-        ),
+    // الخلفية: إشعار واحد فقط — لا نكرر إذا FCM عرض الإشعار بالفعل
+    final fcmAlreadyDisplayed = message.notification != null;
+    if (!fcmAlreadyDisplayed) {
+      await _showHighPriorityNotification(
+        title,
+        body,
+        type,
+        alertData: message.data,
       );
     }
-    
-    // عرض notification عادي كـ backup
-    _showHighPriorityNotification("${data["title"]}", "${data["body"]}", 'order');
+
+    if (hasContext) {
+      _openAlertFromData(message.data);
+    }
   }
 
-  /// عرض Full Screen Alert للزيارة
-  // void _showFullScreenVisitAlert(RemoteNotification data) {
-  //   final context = navigatorKey.currentContext;
-  //   if (context != null) {
-  //     // استخراج visit_id من الإشعار
-  //     final visitId = _extractVisitId(data.title);
-  //
-  //     // محاولة إيجاد VisitDetailsData من القائمة
-  //     // VisitDetailsData? visitData = _findVisitData(visitId);
-  //
-  //     // // فتح شاشة Full Screen Alert للزيارة
-  //     // Navigator.of(context).push(
-  //     //   MaterialPageRoute(
-  //     //     builder: (context) => VisitAlertScreen(
-  //     //       visitId: visitId,
-  //     //       businessName: visitData?.businessName ?? _extractBusinessName(data.body),
-  //     //       customerName: visitData?.customerName ?? _extractCustomerName(data.body),
-  //     //       location: visitData?.customerLocation ?? _extractLocation(data.body),
-  //     //       visitDate: visitData?.createdAt ?? _extractVisitDate(data.body),
-  //     //       visitData: visitData, // تمرير البيانات الكاملة إذا وُجدت
-  //     //     ),
-  //     //     fullscreenDialog: true,
-  //     //   ),
-  //     // );
-  //   }
-  //
-  //   // عرض notification عادي كـ backup
-  //   _showHighPriorityNotification(data.title, data.body, 'visit');
-  // }
-
-  /// استخراج order_id من العنوان
-  String _extractOrderId(String? title) {
-    if (title == null) return 'unknown';
-    // مثال: "ORD-12345" → "12345"
-    final parts = title.split('-');
-    return parts.length > 1 ? parts.last : title;
-  }
-  
-  /// استخراج visit_id من العنوان
-  String _extractVisitId(String? title) {
-    if (title == null) return 'unknown';
-    // مثال: "VISIT-12345" → "12345" أو استخراج الأرقام من النص
-    final parts = title.split('-');
-    if (parts.length > 1) return parts.last;
-    
-    // محاولة استخراج الأرقام من النص
-    final numbers = RegExp(r'\d+').firstMatch(title);
-    return numbers?.group(0) ?? title;
+  String _resolveNotificationType(
+    Map<String, dynamic> data,
+    String title,
+    String body,
+  ) {
+    final combined = '$title $body'.toLowerCase();
+    if (combined.contains('زيارة') || combined.contains('visit')) {
+      return 'visit';
+    }
+    return 'order';
   }
 
-  // /// محاولة إيجاد OrderModel من القائمة الموجودة
-  // OrderModel? _findOrderModel(String orderId) {
-  //   try {
-  //     // البحث في الطلبات الجديدة
-  //     final order = OrdersServices.dataNew.firstWhere(
-  //       (order) => order.id.toString() == orderId || order.reference == orderId,
-  //       orElse: () => throw Exception('Order not found'),
-  //     );
-  //     return order;
-  //   } catch (e) {
-  //     print('⚠️ لم يتم العثور على الطلب في القائمة المحلية: $orderId');
-  //     return null;
-  //   }
-  // }
-  //
-  // /// محاولة إيجاد VisitDetailsData من القائمة الموجودة
-  // VisitDetailsData? _findVisitData(String visitId) {
-  //   try {
-  //     // البحث في الزيارات (يمكن تعديله حسب كيفية تخزين الزيارات)
-  //     // افترض أن هناك قائمة VisitsServices.visits
-  //     // final visit = VisitsServices.visits.firstWhere(
-  //     //   (visit) => visit.id.toString() == visitId,
-  //     //   orElse: () => throw Exception('Visit not found'),
-  //     // );
-  //     // return visit;
-  //
-  //     print('⚠️ لم يتم العثور على الزيارة في القائمة المحلية: $visitId');
-  //     return null;
-  //   } catch (e) {
-  //     print('⚠️ خطأ في البحث عن الزيارة: $e');
-  //     return null;
-  //   }
-  // }
+  /// عرض Full Screen Alert للطلب الجديد
+  static void showFullScreenOrderAlert(Map<String, dynamic> data) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    if (!_isActionableAlert(data)) return;
+
+    final orderKey = _alertDedupeKey(data);
+    if (_isAlertScreenOpen && _openAlertOrderKey == orderKey) return;
+
+    _isAlertScreenOpen = true;
+    _openAlertOrderKey = orderKey;
+
+    final notificationData = NotificationData.fromMap(data);
+    final legacyOrderId = notificationData.orderId.isNotEmpty
+        ? notificationData.orderId
+        : notificationData.orderVendorId;
+
+    Navigator.of(context)
+        .push(
+      MaterialPageRoute(
+        builder: (context) => OrderAlertScreen(
+          notificationData: notificationData,
+          notificationTitle: data['title']?.toString(),
+          notificationBody: data['body']?.toString(),
+          orderId: legacyOrderId,
+          orderReference: data['title']?.toString() ?? 'N/A',
+          customerName: extractCustomerName(data['body']?.toString()),
+          location: extractLocation(data['body']?.toString()),
+          orderDetails: data['body']?.toString(),
+        ),
+        fullscreenDialog: true,
+      ),
+    )
+        .then((_) {
+      _isAlertScreenOpen = false;
+      _openAlertOrderKey = null;
+    });
+  }
 
   /// استخراج اسم العميل من body الإشعار
-  String _extractCustomerName(String? body) {
+  static String extractCustomerName(String? body) {
     if (body == null) return 'عميل جديد';
-    // TODO: تحسين الاستخراج بناءً على صيغة الإشعار من Backend
+    // TODO: تحسين الاستخراج بناء على صيغة الإشعار من Backend
     return body.split(':').first.trim();
   }
   
-  /// استخراج اسم المنشأة التجارية من body الإشعار
-  String _extractBusinessName(String? body) {
-    if (body == null) return 'غير محدد';
-    // TODO: تحسين الاستخراج بناءً على صيغة الإشعار من Backend
-    final parts = body.split('|');
-    return parts.isNotEmpty ? parts.first.trim() : 'غير محدد';
-  }
-
   /// استخراج الموقع من body الإشعار
-  String _extractLocation(String? body) {
+  static String extractLocation(String? body) {
     if (body == null) return 'غير محدد';
-    // TODO: تحسين الاستخراج بناءً على صيغة الإشعار من Backend
+    // TODO: تحسين الاستخراج بناء على صيغة الإشعار من Backend
     final parts = body.split(':');
     return parts.length > 1 ? parts[1].trim() : 'غير محدد';
   }
   
-  /// استخراج موعد الزيارة من body الإشعار
-  String _extractVisitDate(String? body) {
-    if (body == null) return 'غير محدد';
-    // TODO: تحسين الاستخراج بناءً على صيغة الإشعار من Backend
-    final dateMatch = RegExp(r'\d{4}-\d{2}-\d{2}').firstMatch(body ?? '');
-    return dateMatch?.group(0) ?? 'غير محدد';
+  String _encodeNotificationPayload(String type, Map<String, dynamic> data) {
+    return jsonEncode({'type': type, 'data': data});
   }
 
-  /// عرض إشعار ذو أولوية عالية (Backup للـ Full Screen Alert)
-  Future<void> _showHighPriorityNotification(String? title, String? body, String type) async {
+  Map<String, dynamic>? _decodeNotificationPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return _pendingAlertData;
+    try {
+      final decoded = jsonDecode(payload) as Map<String, dynamic>;
+      final data = decoded['data'];
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+    } catch (_) {}
+    return _pendingAlertData;
+  }
+
+  /// عرض إشعار ذو أولوية عالية — يظهر من فوق الشاشة مع صوت واهتزاز قوي
+  Future<void> _showHighPriorityNotification(
+    String? title,
+    String? body,
+    String type, {
+    Map<String, dynamic>? alertData,
+  }) async {
+    await flutterLocalNotificationsPlugin.cancel(_alertNotificationId);
     final isVisit = type == 'visit';
-    final channelId = isVisit ? 'visit_alerts_channel' : 'order_alerts_channel';
+    final channelId = isVisit ? visitChannelId : orderChannelId;
     final channelName = isVisit ? 'مواعيد الزيارات' : 'طلبات التوصيل';
-    final channelDesc = isVisit 
+    final channelDesc = isVisit
         ? 'تنبيهات مواعيد الزيارات للمندوبين'
         : 'إشعارات الطلبات الجديدة للمندوبين';
-    
+
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       channelId,
       channelName,
       channelDescription: channelDesc,
       importance: Importance.max,
-      priority: Priority.high,
+      priority: Priority.max,
       playSound: true,
       enableVibration: true,
-      fullScreenIntent: true, // مهم جداً للأندرويد
+      vibrationPattern: _strongVibrationPattern,
+      fullScreenIntent: true,
       category: AndroidNotificationCategory.alarm,
-      ticker: isVisit ? 'موعد زيارة قريب' : 'طلب توصيل جديد',
- //     sound: RawResourceAndroidNotificationSound('order_alert'),
+      visibility: NotificationVisibility.public,
+      ticker: isVisit ? 'موعد زيارة قريب 🚨' : 'طلب توصيل جديد 🚨',
+      autoCancel: true,
+      ongoing: false,
+      onlyAlertOnce: false,
+      channelAction: AndroidNotificationChannelAction.createIfNotExists,
+      additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT — يكرر الصوت
+      ledOnMs: 1000,
+      ledOffMs: 500,
       styleInformation: BigTextStyleInformation(
         body ?? '',
         contentTitle: title,
@@ -377,7 +421,7 @@ class NotificationsHelper {
       presentBadge: true, 
       //sound: 'order_alert.caf', // صوت مخصص لـ iOS
       categoryIdentifier: 'ALERT_CATEGORY',
-      interruptionLevel: InterruptionLevel.critical, // مهم جداً لـ iOS
+      interruptionLevel: InterruptionLevel.critical, // مهم جدا لـ iOS
     );
 
     final NotificationDetails platformDetails = NotificationDetails(
@@ -385,62 +429,23 @@ class NotificationsHelper {
       iOS: iOSDetails,
     );
 
+    final data = alertData ?? _pendingAlertData ?? {};
+    final payload = _encodeNotificationPayload(type, data);
+
     await flutterLocalNotificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      _alertNotificationId,
       title ?? (isVisit ? "موعد زيارة قريب 🚨" : "طلب توصيل جديد 🚨"),
       body ?? (isVisit ? "لديك زيارة محددة تحتاج موافقتك" : "لديك طلب جديد يحتاج موافقتك"),
       platformDetails,
-      payload: type == 'visit' ? 'visit|$title' : 'order|$title',
+      payload: payload,
     );
   }
 
-  /// معالجة النقر على الإشعار
+  /// معالجة النقر على الإشعار — فتح صفحة التنبيه
   void _onNotificationTapped(NotificationResponse response) {
-    final payload = response.payload ?? '';
-    final parts = payload.split('|');
-    final type = parts.first;
-    final title = parts.length > 1 ? parts[1] : '';
-
-    final context = navigatorKey.currentContext;
-    if (context == null) return;
-
-    if (type == 'order' || type == 'order_alert') {
-      print('📱 تم النقر على إشعار الطلب');
-      final orderId = _extractOrderId(title);
-      // final orderModel = _findOrderModel(orderId);
-      //
-      // if (orderModel != null) {
-      //   Navigator.of(context).push(
-      //     MaterialPageRoute(
-      //       builder: (context) => OrderDetailsScreen(orderModel: orderModel),
-      //     ),
-      //   );
-      // } else {
-      //   print('⚠️ لم يتم العثور على تفاصيل الطلب');
-      // }
-    } else if (type == 'visit' || type == 'visit_alert') {
-      print('📱 تم النقر على إشعار الزيارة');
-      final visitId = _extractVisitId(title);
-      // final visitData = _findVisitData(visitId);
-      //
-      // if (visitData != null) {
-      //   Navigator.of(context).push(
-      //     MaterialPageRoute(
-      //       builder: (context) => VisitDetails(visitDetailsData: visitData),
-      //     ),
-      //   );
-      // } else {
-      //   print('⚠️ لم يتم العثور على تفاصيل الزيارة');
-      // }
-    }
-  }
-
-  /// Background message handler (to handle notifications when the app is in the background)
-  static Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-    final helper = NotificationsHelper();
-    if (message.notification!=null) {
-      helper._handleDataMessage(message.notification!);
-    }
+    final alertData = _decodeNotificationPayload(response.payload);
+    if (alertData == null || alertData.isEmpty) return;
+    _openAlertFromData(alertData);
   }
 
   /// Get FCM token (optional, can be used to store or use the token in your app)
@@ -463,5 +468,9 @@ class NotificationsHelper {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     await messaging.subscribeToTopic(topic);
     print("Subscribed to topic: $topic");
+  }
+
+  void handleBackgroundNotification(RemoteMessage message) {
+    processIncomingMessage(message);
   }
 }

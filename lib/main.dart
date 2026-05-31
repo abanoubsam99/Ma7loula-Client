@@ -26,10 +26,10 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  // NotificationsHelper().initialize();
   EasyLocalization.logger.enableBuildModes = [];
   await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform, name: 'Mahloula');
+  await NotificationsHelper().initialize();
 
   runApp(
     EasyLocalization(
