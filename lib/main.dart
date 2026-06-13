@@ -39,6 +39,12 @@ void main() async {
       child: MyApp(),
     ),
   );
+
+  // بعد أول إطار يكون الـ Navigator جاهز — نفتح صفحة تفاصيل الطلب لو التطبيق
+  // اتفتح من الضغط على إشعار وهو مقفول (terminated).
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    NotificationsHelper().handleLaunchNotification();
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -59,10 +65,13 @@ class MyApp extends StatelessWidget {
           navigatorKey: NotificationsHelper.navigatorKey,
           debugShowCheckedModeBanner: false,
           builder: (context, child) {
-            return SafeArea(
-              top: false,   // don't add padding from status bar
-              bottom: true, // always keep padding from bottom (home indicator / notch)
-              child: child!,
+            return Container(
+              color: ColorsPalette.white,
+              child: SafeArea(
+                top: false,   // don't add padding from status bar
+                bottom: true, // always keep padding from bottom (home indicator / notch)
+                child: child!,
+              ),
             );
           },
           localizationsDelegates: [

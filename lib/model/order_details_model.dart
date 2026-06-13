@@ -54,6 +54,7 @@ class Order {
   List<Products>? products;
   List<VendorLines>? vendorLines;
   List<Statueses>? statueses;
+  List<Service>? services;
   Rate? rate;
 
   // Extra fields from second model
@@ -87,6 +88,7 @@ class Order {
     this.userCar,
     this.products,
     this.statueses,
+    this.services,
     this.rate,
     this.fromLat,
     this.fromLon,
@@ -126,6 +128,11 @@ class Order {
     if (json['statueses'] != null) {
       statueses = [];
       json['statueses'].forEach((v) => statueses!.add(Statueses.fromJson(v)));
+    }
+
+    if (json['services'] != null) {
+      services = [];
+      json['services'].forEach((v) => services!.add(Service.fromJson(v)));
     }
 
     rate = json['rate'] is Map<String, dynamic> ? Rate.fromJson(json['rate']) : null;
@@ -169,6 +176,7 @@ class Order {
     if (userCar != null) map['userCar'] = userCar!.toJson();
     if (products != null) map['products'] = products!.map((e) => e.toJson()).toList();
     if (statueses != null) map['statueses'] = statueses!.map((e) => e.toJson()).toList();
+    if (services != null) map['services'] = services!.map((e) => e.toJson()).toList();
     if (rate != null) map['rate'] = rate!.toJson();
     map['from_lat'] = fromLat;
     map['from_lon'] = fromLon;
@@ -533,6 +541,28 @@ class Worker {
     return data;
   }
 }
+class Service {
+  int? id;
+  String? name;
+  var price;
+
+  Service({this.id, this.name, this.price});
+
+  Service.fromJson(Map<String, dynamic> json) {
+    id = json['id'];
+    name = json['name'];
+    price = json['price'];
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['id'] = id;
+    data['name'] = name;
+    data['price'] = price;
+    return data;
+  }
+}
+
 class VendorLines {
   int? orderVendorId;
   int? vendorId;

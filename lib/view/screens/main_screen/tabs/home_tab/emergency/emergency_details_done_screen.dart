@@ -173,6 +173,32 @@ class _EmergencyOrderDetailsScreenState
                                     UtilValues.gap4,
                                     _vendorCard(),
                                     UtilValues.gap8,
+                                    if (order?.services != null &&
+                                        order!.services!.isNotEmpty) ...[
+                                      Text(
+                                        '${LocaleKeys.services.tr()} (${order.services?.length})',
+                                        style: TextStyle(
+                                            color: ColorsPalette.black,
+                                            fontWeight: FontWeight.w400,
+                                            fontFamily: ZainTextStyles.font,
+                                            fontSize: 14.sp),
+                                      ),
+                                      UtilValues.gap4,
+                                      CustomCard(
+                                        border: Border.all(
+                                            color: ColorsPalette.grey),
+                                        color: ColorsPalette.white,
+                                        child: Column(
+                                          children: [
+                                            for (final service
+                                                in order.services!)
+                                              _serviceRow(service.name ?? '',
+                                                  service.price),
+                                          ],
+                                        ),
+                                      ),
+                                      UtilValues.gap8,
+                                    ],
                                     Builder(builder: (context) {
                                       final userProvider =
                                           context.read<UserProvider>();
@@ -216,13 +242,10 @@ class _EmergencyOrderDetailsScreenState
                                         children: [
                                           _orderDetails(
                                               LocaleKeys.orderDate.tr(),
-                                              order?.deliveryTime ?? ''),
-                                          // _orderDetails(
-                                          //     LocaleKeys.onTheWay.tr(),
-                                          //     /* order?.deliveryTime ??*/ ''),
-                                          // _orderDetails(
-                                          //     LocaleKeys.deliveryDate.tr(),
-                                          //     /*order?.deliveryTime ??*/ ''),
+                                              order?.createdAt ?? ''),
+                                          _orderDetails(
+                                              LocaleKeys.deliveryDate.tr(),
+                                              order?.deliveryTime ?? '—'),
                                         ],
                                       ),
                                     ),
@@ -260,11 +283,10 @@ class _EmergencyOrderDetailsScreenState
                                                 ),
                                                 Spacer(),
                                                 Text(
-                                                  (order?.paymentMethod == 0 ||
-                                                          order?.paymentMethod ==
-                                                              2)
-                                                      ? LocaleKeys.cash.tr()
-                                                      : LocaleKeys.credit.tr(),
+                                                  '${order?.paymentMethod}' ==
+                                                          '1'
+                                                      ? LocaleKeys.credit.tr()
+                                                      : LocaleKeys.cash.tr(),
                                                   style: TextStyle(
                                                       color:
                                                           ColorsPalette.black,
@@ -276,12 +298,10 @@ class _EmergencyOrderDetailsScreenState
                                                 ),
                                                 UtilValues.gap4,
                                                 SvgPicture.asset(
-                                                  (order?.paymentMethod == 0 ||
-                                                          order?.paymentMethod ==
-                                                              2)
-                                                      ? AssetsManager.cash
-                                                      : AssetsManager
-                                                          .masterCard,
+                                                  '${order?.paymentMethod}' ==
+                                                          '1'
+                                                      ? AssetsManager.masterCard
+                                                      : AssetsManager.cash,
                                                 ),
                                               ],
                                             ),
@@ -676,6 +696,43 @@ class _EmergencyOrderDetailsScreenState
               fontSize: 14.sp),
         ),
       ],
+    );
+  }
+
+  _serviceRow(String name, dynamic price) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                  color: ColorsPalette.black,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: ZainTextStyles.font,
+                  fontSize: 14.sp),
+            ),
+          ),
+          Text(
+            Helpers.formatPrice(price ?? 0).toString(),
+            style: TextStyle(
+                color: ColorsPalette.black,
+                fontWeight: FontWeight.w600,
+                fontFamily: ZainTextStyles.font,
+                fontSize: 14.sp),
+          ),
+          UtilValues.gap4,
+          Text(
+            LocaleKeys.le.tr(),
+            style: TextStyle(
+                color: ColorsPalette.customGrey,
+                fontWeight: FontWeight.w400,
+                fontFamily: ZainTextStyles.font,
+                fontSize: 14.sp),
+          ),
+        ],
+      ),
     );
   }
 

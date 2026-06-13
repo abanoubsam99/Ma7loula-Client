@@ -156,8 +156,42 @@ class _OrderDetailsState extends State<OrderDetails> {
                       _productsWidget(order),
                     ],
                     if (widget.orderType == 4)
-                      _vendorCard(order?.id.toString() ?? '',
-                          order?.id.toString() ?? ''),
+                      _vendorCard(
+                        order?.worker?.name ??
+                            order?.vendor?.name ??
+                            '',
+                        order?.worker?.phone ?? '',
+                      ),
+                    if (widget.orderType == 4 &&
+                        order?.services != null &&
+                        order!.services!.isNotEmpty) ...[
+                      UtilValues.gap8,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: Text(
+                          '${LocaleKeys.services.tr()} (${order.services?.length})',
+                          style: TextStyle(
+                              color: ColorsPalette.black,
+                              fontWeight: FontWeight.w500,
+                              fontFamily: ZainTextStyles.font,
+                              fontSize: 14.sp),
+                        ),
+                      ),
+                      UtilValues.gap4,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: CustomCard(
+                          border: Border.all(color: ColorsPalette.grey),
+                          color: ColorsPalette.white,
+                          child: Column(
+                            children: [
+                              for (final service in order.services!)
+                                _serviceRow(service.name ?? '', service.price),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     UtilValues.gap8,
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8.0),
@@ -211,11 +245,9 @@ class _OrderDetailsState extends State<OrderDetails> {
                             child: Column(
                               children: [
                                 _orderDetails(LocaleKeys.orderDate.tr(),
-                                    order?.deliveryTime ?? ''),
-                                // _orderDetails(LocaleKeys.onTheWay.tr(),
-                                //     order?.deliveryTime ?? ''),
-                                // _orderDetails(LocaleKeys.deliveryDate.tr(),
-                                //     order?.deliveryTime ?? ''),
+                                    order?.createdAt ?? ''),
+                                _orderDetails(LocaleKeys.deliveryDate.tr(),
+                                    order?.deliveryTime ?? '—'),
                               ],
                             ),
                           ),
@@ -248,10 +280,9 @@ class _OrderDetailsState extends State<OrderDetails> {
                                       ),
                                       Spacer(),
                                       Text(
-                                        (order?.paymentMethod == 0 ||
-                                                order?.paymentMethod == 2)
-                                            ? LocaleKeys.cash.tr()
-                                            : LocaleKeys.credit.tr(),
+                                        '${order?.paymentMethod}' == '1'
+                                            ? LocaleKeys.credit.tr()
+                                            : LocaleKeys.cash.tr(),
                                         style: TextStyle(
                                             color: ColorsPalette.black,
                                             fontWeight: FontWeight.w600,
@@ -260,10 +291,9 @@ class _OrderDetailsState extends State<OrderDetails> {
                                       ),
                                       UtilValues.gap4,
                                       SvgPicture.asset(
-                                        (order?.paymentMethod == 0 ||
-                                                order?.paymentMethod == 2)
-                                            ? AssetsManager.cash
-                                            : AssetsManager.masterCard,
+                                        '${order?.paymentMethod}' == '1'
+                                            ? AssetsManager.masterCard
+                                            : AssetsManager.cash,
                                       ),
                                     ],
                                   ),
@@ -1090,6 +1120,43 @@ class _OrderDetailsState extends State<OrderDetails> {
               fontSize: 14.sp),
         ),
       ],
+    );
+  }
+
+  _serviceRow(String name, dynamic price) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                  color: ColorsPalette.black,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: ZainTextStyles.font,
+                  fontSize: 14.sp),
+            ),
+          ),
+          Text(
+            Helpers.formatPrice(price ?? 0).toString(),
+            style: TextStyle(
+                color: ColorsPalette.black,
+                fontWeight: FontWeight.w600,
+                fontFamily: ZainTextStyles.font,
+                fontSize: 14.sp),
+          ),
+          UtilValues.gap4,
+          Text(
+            LocaleKeys.le.tr(),
+            style: TextStyle(
+                color: ColorsPalette.customGrey,
+                fontWeight: FontWeight.w400,
+                fontFamily: ZainTextStyles.font,
+                fontSize: 14.sp),
+          ),
+        ],
+      ),
     );
   }
 

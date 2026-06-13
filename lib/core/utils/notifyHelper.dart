@@ -1,476 +1,372 @@
-﻿import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../firebase_options.dart';
-import '../widgets/order_alert_screen.dart';
+import '../../view/screens/main_screen/tabs/my_orders_tab/order_details_screen.dart';
 
+/// ════════════════════════════════════════════════════════════════════════
+/// Background isolate handler — لازم يكون top-level وعليه @pragma.
+/// يشتغل لما التطبيق في الخلفية أو مقفول (terminated).
+///
+/// ملاحظة مهمة: لو الرسالة جاية من السيرفر وفيها بلوك `notification`، النظام
+/// (Android/iOS) بيعرض الإشعار تلقائياً حتى لو التطبيق مقفول — مش محتاجين كود
+/// لعرضه. الكود ده بيعرض إشعار محلي فقط لو الرسالة data-only (من غير
+/// `notification`) كـ fallback.
+/// ════════════════════════════════════════════════════════════════════════
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {
+    // التطبيق متهيّأ بالفعل
+  }
 
-  final helper = NotificationsHelper();
-  await helper._ensureBackgroundReady();
-  await helper.processIncomingMessage(message);
+  if (message.notification == null && message.data.isNotEmpty) {
+    final helper = NotificationsHelper();
+    await helper.ensureBackgroundReady();
+    await helper.showOrderNotification(message);
+  }
 }
 
 class NotificationsHelper {
   static final NotificationsHelper _instance = NotificationsHelper._internal();
   factory NotificationsHelper() => _instance;
-
   NotificationsHelper._internal();
 
-  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-  
-  static const String orderChannelId = 'order_alerts_channel';
-  static const String visitChannelId = 'visit_alerts_channel';
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
-  /// معرف ثابت — كل إشعار جديد يستبدل السابق (إشعار واحد فقط في الشريط)
-  static const int _alertNotificationId = 9001;
+  /// قناة موحّدة عالية الأهمية — لازم تطابق `default_notification_channel_id`
+  /// الموجودة في AndroidManifest.xml عشان الإشعارات اللي بيعرضها النظام وقت
+  /// إغلاق التطبيق تستخدم نفس القناة (صوت + heads-up).
+  static const String channelId = 'high_importance_channel';
+  static const String channelName = 'إشعارات الطلبات';
+  static const String channelDescription = 'إشعارات حالة الطلبات والعروض';
 
-  /// نمط اهتزاز قوي ومكرر
-  static final Int64List _strongVibrationPattern = Int64List.fromList([
-    0, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1000, 300, 1500,
-  ]);
+  static final Int64List _vibrationPattern =
+      Int64List.fromList([0, 600, 250, 600]);
 
-  static Map<String, dynamic>? _pendingAlertData;
-  static String? _lastProcessedAlertKey;
-  static DateTime? _lastProcessedAt;
-  static bool _isAlertScreenOpen = false;
-  static String? _openAlertOrderKey;
-
-  // Global Navigator Key للوصول للـ context من أي مكان
+  /// Global Navigator Key للوصول للـ Navigator من أي مكان (حتى الإشعارات).
   static GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-  /// Initialize Firebase Messaging and set up listeners
+  /// بيانات إشعار في انتظار فتح صفحة التفاصيل — تُستخدم لو الـ Navigator لسه
+  /// مش جاهز (التطبيق بيفتح من حالة الإغلاق).
+  static Map<String, dynamic>? _pendingRouteData;
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Initialization
+  // ──────────────────────────────────────────────────────────────────────
+
   Future<void> initialize() async {
     await _initializeFirebase();
     await _initializeLocalNotifications();
-
-    // Setup Firebase Cloud Messaging (FCM) listeners for incoming messages
     _setupFCMListeners();
-
-    // Get FCM token (optional, if you want to store or use it)
     await _getFCMToken();
   }
 
-  /// يستدعى بعد أول إطار عندما يكون الـ Navigator جاهزا
-  Future<void> handleLaunchNotification() async {
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      _handleNotificationOpenedApp(initialMessage);
-    }
-  }
-
-  /// Initialize Firebase
   Future<void> _initializeFirebase() async {
-    // التحقق إذا كان Firebase مهيأ بالفعل
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
     } catch (e) {
-      if (e.toString().contains('duplicate-app')) {
-        print('✅ Firebase already initialized');
-      } else {
-        rethrow;
-      }
+      if (!e.toString().contains('duplicate-app')) rethrow;
     }
-    
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    // Request notification permissions for iOS
+    final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
       provisional: false,
     );
+
+    // نوقف عرض iOS التلقائي للإشعار وهو foreground عشان نعرض إشعار محلي واحد
+    // على المنصتين ويبقى سلوك الضغط موحّد.
+    await messaging.setForegroundNotificationPresentationOptions(
+      alert: false,
+      badge: false,
+      sound: false,
+    );
   }
 
-  /// Initialize local notifications
   Future<void> _initializeLocalNotifications() async {
-    const AndroidInitializationSettings androidSettings = 
+    const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    
-    const DarwinInitializationSettings iOSSettings = DarwinInitializationSettings(
+    const iOSSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    
-    const InitializationSettings settings = InitializationSettings(
-      android: androidSettings,
-      iOS: iOSSettings,
-    );
-    
+    const settings =
+        InitializationSettings(android: androidSettings, iOS: iOSSettings);
+
     await flutterLocalNotificationsPlugin.initialize(
       settings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    final androidPlugin = flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-
-    final AndroidNotificationChannel orderChannel = AndroidNotificationChannel(
-      orderChannelId,
-      'طلبات التوصيل',
-      description: 'إشعارات الطلبات الجديدة للمندوبين',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-      vibrationPattern: _strongVibrationPattern,
-      showBadge: true,
-      enableLights: true,
-      ledColor: const Color.fromARGB(255, 255, 0, 0),
-    );
-
-    final AndroidNotificationChannel visitChannel = AndroidNotificationChannel(
-      visitChannelId,
-      'مواعيد الزيارات',
-      description: 'تنبيهات مواعيد الزيارات للمندوبين',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-      vibrationPattern: _strongVibrationPattern,
-      showBadge: true,
-      enableLights: true,
-      ledColor: const Color.fromARGB(255, 255, 165, 0),
-    );
-
-    await androidPlugin?.createNotificationChannel(orderChannel);
-    await androidPlugin?.createNotificationChannel(visitChannel);
+    await _createChannel();
   }
 
-  /// تهيئة الإشعارات المحلية في الـ background isolate
-  Future<void> _ensureBackgroundReady() async {
-    const AndroidInitializationSettings androidSettings =
+  /// تهيئة الإشعارات المحلية في الـ background isolate.
+  Future<void> ensureBackgroundReady() async {
+    const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings iOSSettings = DarwinInitializationSettings();
-    const InitializationSettings settings = InitializationSettings(
-      android: androidSettings,
-      iOS: iOSSettings,
-    );
+    const iOSSettings = DarwinInitializationSettings();
+    const settings =
+        InitializationSettings(android: androidSettings, iOS: iOSSettings);
 
     await flutterLocalNotificationsPlugin.initialize(settings);
-
-    final androidPlugin = flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-
-    final AndroidNotificationChannel orderChannel = AndroidNotificationChannel(
-      orderChannelId,
-      'طلبات التوصيل',
-      description: 'إشعارات الطلبات الجديدة للمندوبين',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-      vibrationPattern: _strongVibrationPattern,
-      showBadge: true,
-    );
-
-    final AndroidNotificationChannel visitChannel = AndroidNotificationChannel(
-      visitChannelId,
-      'مواعيد الزيارات',
-      description: 'تنبيهات مواعيد الزيارات للمندوبين',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-      vibrationPattern: _strongVibrationPattern,
-      showBadge: true,
-    );
-
-    await androidPlugin?.createNotificationChannel(orderChannel);
-    await androidPlugin?.createNotificationChannel(visitChannel);
+    await _createChannel();
   }
 
-  /// Setup listeners for Firebase Cloud Messaging
-  void _setupFCMListeners() {
-    // Handle incoming notifications when the app is in the foreground
-    FirebaseMessaging.onMessage.listen(_handleIncomingNotification);
+  Future<void> _createChannel() async {
+    final androidPlugin =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
-    // Handle background messages (when app is closed or in background)
+    final channel = AndroidNotificationChannel(
+      channelId,
+      channelName,
+      description: channelDescription,
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: _vibrationPattern,
+      showBadge: true,
+    );
+
+    await androidPlugin?.createNotificationChannel(channel);
+  }
+
+  void _setupFCMListeners() {
+    // التطبيق مفتوح (foreground)
+    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    // التطبيق في الخلفية أو مقفول
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    // Handle when notification is tapped
+    // الضغط على الإشعار والتطبيق في الخلفية (مش مقفول بالكامل)
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpenedApp);
   }
 
-  /// Handle when notification is opened from background
-  void _handleNotificationOpenedApp(RemoteMessage message) {
-    print("📱 فتح التطبيق من الإشعار: ${message.data}");
-    if (!_isActionableAlert(message.data)) return;
-    _pendingAlertData = Map<String, dynamic>.from(message.data);
-    _openAlertFromData(message.data);
-  }
+  // ──────────────────────────────────────────────────────────────────────
+  // Launch (terminated → tap) handling
+  // ──────────────────────────────────────────────────────────────────────
 
-  static bool _isActionableAlert(Map<String, dynamic> data) {
-    if (data.isEmpty) return false;
-    final status = data['status']?.toString();
-    return status == 'new' ||
-        status == 'pending_customer' ||
-        status == 'offer_pending';
-  }
-
-  static String _alertDedupeKey(Map<String, dynamic> data) {
-    final orderId = data['order_vendor_id']?.toString() ?? '';
-    final status = data['status']?.toString() ?? '';
-    final eventType = data['event_type']?.toString() ?? '';
-    return '$orderId|$status|$eventType';
-  }
-
-  bool _shouldProcessAlert(Map<String, dynamic> data) {
-    if (!_isActionableAlert(data)) return false;
-    final key = _alertDedupeKey(data);
-    final now = DateTime.now();
-    if (_lastProcessedAlertKey == key &&
-        _lastProcessedAt != null &&
-        now.difference(_lastProcessedAt!) < const Duration(seconds: 5)) {
-      return false;
-    }
-    _lastProcessedAlertKey = key;
-    _lastProcessedAt = now;
-    return true;
-  }
-
-  void _openAlertFromData(Map<String, dynamic> data) {
-    if (!_isActionableAlert(data)) return;
-    _pendingAlertData = Map<String, dynamic>.from(data);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showFullScreenOrderAlert(data);
-    });
-  }
-
-  /// Handle incoming FCM notifications when the app is in the foreground
-  void _handleIncomingNotification(RemoteMessage message) {
-    processIncomingMessage(message, showFullScreen: true);
-  }
-
-  /// معالجة الإشعار الوارد (foreground / background)
-  Future<void> processIncomingMessage(
-    RemoteMessage message, {
-    bool showFullScreen = false,
-  }) async {
-    if (message.data.isEmpty || !_shouldProcessAlert(message.data)) return;
-
-    final title = message.notification?.title ??
-        message.data['title']?.toString() ??
-        'طلب توصيل جديد 🚨';
-    final body = message.notification?.body ??
-        message.data['body']?.toString() ??
-        'لديك إشعار جديد يحتاج انتباهك';
-    final type = _resolveNotificationType(message.data, title, body);
-
-    _pendingAlertData = Map<String, dynamic>.from(message.data);
-
-    final hasContext = navigatorKey.currentContext != null;
-
-    // التطبيق مفتوح: افتح صفحة التنبيه مباشرة (صوت واهتزاز من الشاشة نفسها)
-    if (showFullScreen && hasContext) {
-      _openAlertFromData(message.data);
+  /// يُستدعى بعد أول إطار: يفتح صفحة تفاصيل الطلب لو التطبيق اتفتح من إشعار
+  /// وهو مقفول (terminated). بيغطي 3 حالات:
+  ///  1) إشعار FCM فيه `notification` → getInitialMessage
+  ///  2) إشعار محلي (data-only) → getNotificationAppLaunchDetails
+  ///  3) أي route كان مُعلّق لحد ما الـ Navigator جاهز
+  Future<void> handleLaunchNotification() async {
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null && initialMessage.data.isNotEmpty) {
+      _navigateToOrderDetails(initialMessage.data);
       return;
     }
 
-    // الخلفية: إشعار واحد فقط — لا نكرر إذا FCM عرض الإشعار بالفعل
-    final fcmAlreadyDisplayed = message.notification != null;
-    if (!fcmAlreadyDisplayed) {
-      await _showHighPriorityNotification(
-        title,
-        body,
-        type,
-        alertData: message.data,
-      );
+    final launchDetails =
+        await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final data = _decodePayload(launchDetails!.notificationResponse?.payload);
+      if (data != null) {
+        _navigateToOrderDetails(data);
+        return;
+      }
     }
 
-    if (hasContext) {
-      _openAlertFromData(message.data);
+    if (_pendingRouteData != null) {
+      final data = _pendingRouteData!;
+      _pendingRouteData = null;
+      _navigateToOrderDetails(data);
     }
   }
 
-  String _resolveNotificationType(
-    Map<String, dynamic> data,
-    String title,
-    String body,
-  ) {
-    final combined = '$title $body'.toLowerCase();
-    if (combined.contains('زيارة') || combined.contains('visit')) {
-      return 'visit';
-    }
-    return 'order';
+  // ──────────────────────────────────────────────────────────────────────
+  // Message handlers
+  // ──────────────────────────────────────────────────────────────────────
+
+  /// التطبيق مفتوح: النظام مش بيعرض الإشعار، فنعرض إشعار محلي قابل للضغط.
+  void _handleForegroundMessage(RemoteMessage message) {
+    showOrderNotification(message);
   }
 
-  /// عرض Full Screen Alert للطلب الجديد
-  static void showFullScreenOrderAlert(Map<String, dynamic> data) {
-    final context = navigatorKey.currentContext;
-    if (context == null) return;
-    if (!_isActionableAlert(data)) return;
+  /// الضغط على إشعار FCM والتطبيق في الخلفية.
+  void _handleNotificationOpenedApp(RemoteMessage message) {
+    _navigateToOrderDetails(message.data);
+  }
 
-    final orderKey = _alertDedupeKey(data);
-    if (_isAlertScreenOpen && _openAlertOrderKey == orderKey) return;
+  /// الضغط على إشعار محلي (foreground / data-only).
+  void _onNotificationTapped(NotificationResponse response) {
+    final data = _decodePayload(response.payload);
+    if (data != null) _navigateToOrderDetails(data);
+  }
 
-    _isAlertScreenOpen = true;
-    _openAlertOrderKey = orderKey;
+  /// عرض إشعار محلي عالي الأهمية يحمل بيانات الطلب في payload.
+  Future<void> showOrderNotification(RemoteMessage message) async {
+    final title = message.notification?.title ??
+        message.data['title']?.toString() ??
+        'تحديث على طلبك';
+    final body = message.notification?.body ??
+        message.data['body']?.toString() ??
+        'اضغط لعرض تفاصيل الطلب';
 
-    final notificationData = NotificationData.fromMap(data);
-    final legacyOrderId = notificationData.orderId.isNotEmpty
-        ? notificationData.orderId
-        : notificationData.orderVendorId;
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: _vibrationPattern,
+      visibility: NotificationVisibility.public,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(body, contentTitle: title),
+    );
 
-    Navigator.of(context)
-        .push(
-      MaterialPageRoute(
-        builder: (context) => OrderAlertScreen(
-          notificationData: notificationData,
-          notificationTitle: data['title']?.toString(),
-          notificationBody: data['body']?.toString(),
-          orderId: legacyOrderId,
-          orderReference: data['title']?.toString() ?? 'N/A',
-          customerName: extractCustomerName(data['body']?.toString()),
-          location: extractLocation(data['body']?.toString()),
-          orderDetails: data['body']?.toString(),
+    const iOSDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final details = NotificationDetails(android: androidDetails, iOS: iOSDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      details,
+      payload: jsonEncode(message.data),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Navigation → Order Details
+  // ──────────────────────────────────────────────────────────────────────
+
+  void _navigateToOrderDetails(Map<String, dynamic> data) {
+    final route = _extractOrderRoute(data);
+    if (route == null) {
+      debugPrint('⚠️ إشعار من غير order_id صالح — تم تجاهل الفتح: $data');
+      return;
+    }
+
+    final navigator = navigatorKey.currentState;
+    if (navigator != null) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => OrderDetails(
+            orderNum: route.orderNum,
+            orderType: route.orderType,
+          ),
         ),
-        fullscreenDialog: true,
-      ),
-    )
-        .then((_) {
-      _isAlertScreenOpen = false;
-      _openAlertOrderKey = null;
+      );
+      return;
+    }
+
+    // الـ Navigator لسه مش جاهز (التطبيق بيفتح من الإغلاق) — خزّن وأعد المحاولة
+    // بعد أول إطار.
+    _pendingRouteData = data;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = navigatorKey.currentState;
+      if (nav == null || _pendingRouteData == null) return;
+      final pending = _pendingRouteData!;
+      _pendingRouteData = null;
+      final r = _extractOrderRoute(pending);
+      if (r == null) return;
+      nav.push(
+        MaterialPageRoute(
+          builder: (_) =>
+              OrderDetails(orderNum: r.orderNum, orderType: r.orderType),
+        ),
+      );
     });
   }
 
-  /// استخراج اسم العميل من body الإشعار
-  static String extractCustomerName(String? body) {
-    if (body == null) return 'عميل جديد';
-    // TODO: تحسين الاستخراج بناء على صيغة الإشعار من Backend
-    return body.split(':').first.trim();
-  }
-  
-  /// استخراج الموقع من body الإشعار
-  static String extractLocation(String? body) {
-    if (body == null) return 'غير محدد';
-    // TODO: تحسين الاستخراج بناء على صيغة الإشعار من Backend
-    final parts = body.split(':');
-    return parts.length > 1 ? parts[1].trim() : 'غير محدد';
-  }
-  
-  String _encodeNotificationPayload(String type, Map<String, dynamic> data) {
-    return jsonEncode({'type': type, 'data': data});
+  /// يستخرج رقم ونوع الطلب من بيانات الإشعار.
+  /// يرجّع null لو مفيش order id صالح.
+  _OrderRoute? _extractOrderRoute(Map<String, dynamic> data) {
+    if (data.isEmpty) return null;
+    final rawId = data['order_id'] ??
+        data['orderId'] ??
+        data['id'] ??
+        data['order_vendor_id'];
+    final orderNum = int.tryParse('${rawId ?? ''}'.trim());
+    if (orderNum == null) return null;
+
+    final orderType =
+        _resolveOrderType(data['order_type'] ?? data['type'] ?? data['category']);
+    return _OrderRoute(orderNum, orderType);
   }
 
-  Map<String, dynamic>? _decodeNotificationPayload(String? payload) {
-    if (payload == null || payload.isEmpty) return _pendingAlertData;
+  /// تحويل نوع الطلب من نص/رقم إلى الـ index المستخدَم في OrderDetails:
+  /// 0=battery، 1=tires، 2=car-parts، 3=winch، 4=emergency.
+  int _resolveOrderType(dynamic raw) {
+    final value = '${raw ?? ''}'.trim().toLowerCase();
+    switch (value) {
+      case '0':
+      case 'battery':
+      case 'batteries':
+        return 0;
+      case '1':
+      case 'tire':
+      case 'tires':
+        return 1;
+      case '2':
+      case 'car-parts':
+      case 'car_parts':
+      case 'carparts':
+      case 'parts':
+        return 2;
+      case '3':
+      case 'winch':
+        return 3;
+      case '4':
+      case 'emergency':
+        return 4;
+      default:
+        return int.tryParse(value) ?? 2;
+    }
+  }
+
+  Map<String, dynamic>? _decodePayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
     try {
-      final decoded = jsonDecode(payload) as Map<String, dynamic>;
-      final data = decoded['data'];
-      if (data is Map) {
-        return Map<String, dynamic>.from(data);
-      }
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
     } catch (_) {}
-    return _pendingAlertData;
+    return null;
   }
 
-  /// عرض إشعار ذو أولوية عالية — يظهر من فوق الشاشة مع صوت واهتزاز قوي
-  Future<void> _showHighPriorityNotification(
-    String? title,
-    String? body,
-    String type, {
-    Map<String, dynamic>? alertData,
-  }) async {
-    await flutterLocalNotificationsPlugin.cancel(_alertNotificationId);
-    final isVisit = type == 'visit';
-    final channelId = isVisit ? visitChannelId : orderChannelId;
-    final channelName = isVisit ? 'مواعيد الزيارات' : 'طلبات التوصيل';
-    final channelDesc = isVisit
-        ? 'تنبيهات مواعيد الزيارات للمندوبين'
-        : 'إشعارات الطلبات الجديدة للمندوبين';
+  // ──────────────────────────────────────────────────────────────────────
+  // FCM token & topics
+  // ──────────────────────────────────────────────────────────────────────
 
-    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDesc,
-      importance: Importance.max,
-      priority: Priority.max,
-      playSound: true,
-      enableVibration: true,
-      vibrationPattern: _strongVibrationPattern,
-      fullScreenIntent: true,
-      category: AndroidNotificationCategory.alarm,
-      visibility: NotificationVisibility.public,
-      ticker: isVisit ? 'موعد زيارة قريب 🚨' : 'طلب توصيل جديد 🚨',
-      autoCancel: true,
-      ongoing: false,
-      onlyAlertOnce: false,
-      channelAction: AndroidNotificationChannelAction.createIfNotExists,
-      additionalFlags: Int32List.fromList([4]), // FLAG_INSISTENT — يكرر الصوت
-      ledOnMs: 1000,
-      ledOffMs: 500,
-      styleInformation: BigTextStyleInformation(
-        body ?? '',
-        contentTitle: title,
-        summaryText: isVisit ? 'موعد زيارة' : 'طلب جديد',
-      ),
-    );
-
-    const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentSound: true,
-      presentBadge: true, 
-      //sound: 'order_alert.caf', // صوت مخصص لـ iOS
-      categoryIdentifier: 'ALERT_CATEGORY',
-      interruptionLevel: InterruptionLevel.critical, // مهم جدا لـ iOS
-    );
-
-    final NotificationDetails platformDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iOSDetails,
-    );
-
-    final data = alertData ?? _pendingAlertData ?? {};
-    final payload = _encodeNotificationPayload(type, data);
-
-    await flutterLocalNotificationsPlugin.show(
-      _alertNotificationId,
-      title ?? (isVisit ? "موعد زيارة قريب 🚨" : "طلب توصيل جديد 🚨"),
-      body ?? (isVisit ? "لديك زيارة محددة تحتاج موافقتك" : "لديك طلب جديد يحتاج موافقتك"),
-      platformDetails,
-      payload: payload,
-    );
-  }
-
-  /// معالجة النقر على الإشعار — فتح صفحة التنبيه
-  void _onNotificationTapped(NotificationResponse response) {
-    final alertData = _decodeNotificationPayload(response.payload);
-    if (alertData == null || alertData.isEmpty) return;
-    _openAlertFromData(alertData);
-  }
-
-  /// Get FCM token (optional, can be used to store or use the token in your app)
-  static Future<String?> _getFCMToken() async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    String? token = await messaging.getToken();
-    print("FCM Token: $token");
+  Future<String?> _getFCMToken() async {
+    final token = await FirebaseMessaging.instance.getToken();
+    debugPrint('FCM Token: $token');
     return token;
   }
 
-  /// Unsubscribe from topic (optional, if you are using FCM topics)
-  Future<void> unsubscribeFromTopic(String topic) async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    await messaging.unsubscribeFromTopic(topic);
-    print("Unsubscribed from topic: $topic");
-  }
+  Future<void> subscribeToTopic(String topic) =>
+      FirebaseMessaging.instance.subscribeToTopic(topic);
 
-  /// Subscribe to a topic (optional, if you are using FCM topics)
-  Future<void> subscribeToTopic(String topic) async {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    await messaging.subscribeToTopic(topic);
-    print("Subscribed to topic: $topic");
-  }
+  Future<void> unsubscribeFromTopic(String topic) =>
+      FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+}
 
-  void handleBackgroundNotification(RemoteMessage message) {
-    processIncomingMessage(message);
-  }
+/// رقم ونوع الطلب المستخرَجين من إشعار.
+class _OrderRoute {
+  final int orderNum;
+  final int orderType;
+  const _OrderRoute(this.orderNum, this.orderType);
 }

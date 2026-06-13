@@ -404,6 +404,7 @@ abstract class LocaleKeys {
   static const orderBookedTime = 'orderBookedTime';
   static const engine = 'engine';
   static const products = 'products';
+  static const services = 'services';
   static const otherProducts = 'otherProducts';
   static const orderDate = 'orderDate';
   static const deliveryDate = 'deliveryDate';
