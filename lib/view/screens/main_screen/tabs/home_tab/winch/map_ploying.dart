@@ -692,6 +692,8 @@ class _MapPolylineScreenState extends State<MapPolylineScreen> {
 
   bool _loading = false;
   void startSearch() async {
+    if (_loading) return;
+    setState(() => _loading = true);
     try {
       final cars = await CarApi.getCars(locale: context.locale);
 
@@ -813,7 +815,7 @@ final order = await MiscellaneousApi.createWinchOrder(
         color: ColorsPalette.darkGrey,
         backgroundColor: ColorsPalette.white,
         controller: _myLocController,
-        inputType: TextInputType.name,
+        inputType: TextInputType.text,
         key: const ValueKey('myLocation'),
         hint: LocaleKeys.searchYourCurrentLoc.tr(),
         validator: FormBuilderValidators.required(),
@@ -869,7 +871,7 @@ final order = await MiscellaneousApi.createWinchOrder(
         color: ColorsPalette.darkGrey,
         backgroundColor: ColorsPalette.white,
         controller: _distinationController,
-        inputType: TextInputType.name,
+        inputType: TextInputType.text,
         key: const ValueKey('dis'),
         hint: LocaleKeys.searchYourDis.tr(),
         validator: FormBuilderValidators.required(),

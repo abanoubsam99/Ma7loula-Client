@@ -679,7 +679,7 @@
 //             color: ColorsPalette.darkGrey,
 //             backgroundColor: ColorsPalette.white,
 //             controller: _orderDetailsController,
-//             inputType: TextInputType.name,
+//             inputType: TextInputType.text,
 //             name: LocaleKeys.name.tr(),
 //             key: const ValueKey('details'),
 //             hint: LocaleKeys.addressDetailsEx.tr(),

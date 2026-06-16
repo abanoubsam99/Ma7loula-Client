@@ -222,7 +222,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
           color: ColorsPalette.darkGrey,
           backgroundColor: ColorsPalette.white,
           controller: _oldPasswordController,
-          inputType: TextInputType.name,
+          inputType: TextInputType.text,
           obscured: showOldPass,
           name: LocaleKeys.oldPassword.tr(),
           key: const ValueKey('oldPassword'),

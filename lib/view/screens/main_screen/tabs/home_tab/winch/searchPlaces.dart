@@ -215,7 +215,7 @@ class _PlaceSearchScreenState extends State<PlaceSearchScreen> {
         color: ColorsPalette.darkGrey,
         backgroundColor: ColorsPalette.white,
         controller: widget.myLocController,
-        inputType: TextInputType.name,
+        inputType: TextInputType.text,
         hint: LocaleKeys.searchYourCurrentLoc.tr(),
         name: '',
         onChanged: (value) {
@@ -249,7 +249,7 @@ class _PlaceSearchScreenState extends State<PlaceSearchScreen> {
         color: ColorsPalette.darkGrey,
         backgroundColor: ColorsPalette.white,
         controller: widget.disController,
-        inputType: TextInputType.name,
+        inputType: TextInputType.text,
         hint: LocaleKeys.searchYourDis.tr(),
         name: '',
         onChanged: (String? value) {

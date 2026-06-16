@@ -65,13 +65,13 @@ class MyApp extends StatelessWidget {
           navigatorKey: NotificationsHelper.navigatorKey,
           debugShowCheckedModeBanner: false,
           builder: (context, child) {
+            // التطبيق ياخد الشاشة كلها — شيلنا الـ SafeArea اللي كان بيعمل
+            // شريط أبيض تحت. سيبنا خلفية بيضا تمنع أي ومضة سوداء وقت الانتقالات.
+            // الشاشات اللي محتاجة تبعد عن الـ home indicator/الإيماءات بتلف
+            // المحتوى السفلي بتاعها في SafeArea بنفسها.
             return Container(
               color: ColorsPalette.white,
-              child: SafeArea(
-                top: false,   // don't add padding from status bar
-                bottom: true, // always keep padding from bottom (home indicator / notch)
-                child: child!,
-              ),
+              child: child!,
             );
           },
           localizationsDelegates: [

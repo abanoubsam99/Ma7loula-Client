@@ -184,7 +184,7 @@ class _UpdateMailScreenState extends State<UpdateMailScreen> {
           color: ColorsPalette.darkGrey,
           backgroundColor: ColorsPalette.white,
           controller: _userNameController,
-          inputType: TextInputType.name,
+          inputType: TextInputType.text,
           name: LocaleKeys.name.tr(),
           key: const ValueKey('name'),
           hint: '',

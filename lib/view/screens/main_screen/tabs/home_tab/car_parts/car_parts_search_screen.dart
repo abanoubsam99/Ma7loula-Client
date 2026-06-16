@@ -335,7 +335,7 @@ class _CarPartsSearchState extends State<CarPartsSearch> {
             color: ColorsPalette.darkGrey,
             backgroundColor: ColorsPalette.white,
             controller: _userNameController,
-            inputType: TextInputType.name,
+            inputType: TextInputType.text,
             name: LocaleKeys.name.tr(),
             key: const ValueKey('name'),
             hint: '',

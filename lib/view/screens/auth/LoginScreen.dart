@@ -396,7 +396,7 @@ class _LoginScreenState extends State<LoginScreen> {
             color: ColorsPalette.darkGrey,
             backgroundColor: ColorsPalette.white,
             controller: _passwordController,
-            inputType: TextInputType.name,
+            inputType: TextInputType.text,
             obscured: showPass,
             name: LocaleKeys.password,
             key: const ValueKey('password'),

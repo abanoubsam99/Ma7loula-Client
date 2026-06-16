@@ -85,7 +85,7 @@
 //               TextInputField(
 //                 name: '0',
 //                 hint: LocaleKeys.cardHolderName.tr(),
-//                 inputType: TextInputType.name,
+//                 inputType: TextInputType.text,
 //                 onChanged: (value) {
 //                   setState(() {
 //                     if (value == null || value.isEmpty) {
