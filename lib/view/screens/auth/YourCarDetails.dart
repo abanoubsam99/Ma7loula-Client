@@ -241,7 +241,8 @@ class _YourCarDetailsState extends State<YourCarDetails> {
         }
 
         if (snapshot.hasError) {
-          return Text('Error: ${snapshot.error}');
+          debugPrint('carBrands error: ${snapshot.error}');
+          return Center(child: Text(LocaleKeys.genericErrorMessage.tr()));
         }
 
         final carBrands = snapshot.data?.data?.carBrands;

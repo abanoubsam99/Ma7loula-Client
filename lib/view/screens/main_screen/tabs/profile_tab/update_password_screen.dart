@@ -51,7 +51,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       appBar: AppBarApp(
         title: LocaleKeys.changePassword.tr(),
       ),
-      bottomNavigationBar: _changePasswordButton(),
+      bottomNavigationBar: SafeArea(top: false, child: _changePasswordButton()),
       body: SingleChildScrollView(
         child: Form(
           key: _formKey,

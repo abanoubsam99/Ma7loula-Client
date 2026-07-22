@@ -455,7 +455,7 @@ class _MapPolylineScreenState extends State<MapPolylineScreen> {
       appBar: AppBarApp(
         title: LocaleKeys.requestWinch.tr(),
       ),
-      bottomNavigationBar: _startSearchButton(),
+      bottomNavigationBar: SafeArea(top: false, child: _startSearchButton()),
       body: Column(
         children: [
           Flexible(

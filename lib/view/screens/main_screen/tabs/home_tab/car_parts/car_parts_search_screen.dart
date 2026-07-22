@@ -90,7 +90,7 @@ class _CarPartsSearchState extends State<CarPartsSearch> {
                 icon: SvgPicture.asset(AssetsManager.cart)),
           ],
         ),
-        bottomNavigationBar: _startSearchButton(),
+        bottomNavigationBar: SafeArea(top: false, child: _startSearchButton()),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

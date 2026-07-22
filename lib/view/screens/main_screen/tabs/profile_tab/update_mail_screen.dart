@@ -50,7 +50,7 @@ class _UpdateMailScreenState extends State<UpdateMailScreen> {
       appBar: AppBarApp(
         title: LocaleKeys.editProfile.tr(),
       ),
-      bottomNavigationBar: _changePasswordButton(),
+      bottomNavigationBar: SafeArea(top: false, child: _changePasswordButton()),
       body: SingleChildScrollView(
         child: Form(
           key: _formKey,

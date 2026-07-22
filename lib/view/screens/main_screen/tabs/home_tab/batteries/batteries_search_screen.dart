@@ -97,7 +97,7 @@ class _BatteriesSearchScreenState extends State<BatteriesSearchScreen> {
                 icon: SvgPicture.asset(AssetsManager.cart)),
           ],
         ),
-        bottomNavigationBar: _startSearchButton(),
+        bottomNavigationBar: SafeArea(top: false, child: _startSearchButton()),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

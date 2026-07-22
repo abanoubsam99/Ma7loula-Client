@@ -86,7 +86,7 @@ class _TiresSearchScreenState extends State<TiresSearchScreen> {
                 icon: SvgPicture.asset(AssetsManager.cart)),
           ],
         ),
-        bottomNavigationBar: _startSearchButton(),
+        bottomNavigationBar: SafeArea(top: false, child: _startSearchButton()),
         body: SingleChildScrollView(
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

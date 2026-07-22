@@ -219,7 +219,7 @@ class _EmergencyMapPolylineScreenState
       appBar: AppBarApp(
         title: LocaleKeys.emergency.tr(),
       ),
-      bottomNavigationBar: _startSearchButton(),
+      bottomNavigationBar: SafeArea(top: false, child: _startSearchButton()),
       body: Column(
         children: [
           Flexible(

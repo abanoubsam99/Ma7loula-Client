@@ -443,10 +443,18 @@ class _MapRoutePageState extends State<MapRoutePage> {
             );
           }
 
-          // Error state
+          // Error state — never expose raw Dio/Http exceptions to the user.
           if (snapshot.hasError) {
+            dev.log("❌ Order details error: ${snapshot.error}");
             return Center(
-              child: Text("Something went wrong: ${snapshot.error}"),
+              child: Text(
+                LocaleKeys.genericErrorMessage.tr(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: ColorsPalette.black,
+                  fontFamily: ZainTextStyles.font,
+                ),
+              ),
             );
           }
 

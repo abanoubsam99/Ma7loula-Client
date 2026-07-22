@@ -1,4 +1,6 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:ma7lola/core/generated/locale_keys.g.dart';
 import 'package:ma7lola/core/widgets/message_widget.dart';
 
 import '../utils/colors_palette.dart';
@@ -76,10 +78,12 @@ class CustomFutureBuilder<T> extends StatelessWidget {
   }
 
   Widget errorWidgetBuilder(String error) {
+    // Never surface raw Dio/Http exceptions to the user — show a clean message.
+    debugPrint("CustomFutureBuilder error: $error");
     return Center(
         child: MessageWidget(
       icon: Icons.error,
-      message: errorMessage ?? error,
+      message: errorMessage ?? LocaleKeys.genericErrorMessage.tr(),
     ));
   }
 

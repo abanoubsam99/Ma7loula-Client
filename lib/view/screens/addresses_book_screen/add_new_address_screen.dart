@@ -133,22 +133,25 @@ class _AddNewAddressScreenState extends State<AddNewAddressScreen> {
     return Scaffold(
       backgroundColor: ColorsPalette.lightGrey,
       appBar: AppBarApp(title: LocaleKeys.addNewAddress.tr()),
-      bottomNavigationBar: Container(
-        color: ColorsPalette.white,
-        padding: const EdgeInsets.all(10.0),
-        child: SizedBox(
-          height: 50,
-          width: double.infinity,
-          child: SimplePrimaryButton(
-            isLoading: _isLoading,
-            loadingWidgetColor: ColorsPalette.white,
-            label: LocaleKeys.saveAddress.tr(),
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                _formKey.currentState!.save();
-                _saveAddress();
-              }
-            },
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          color: ColorsPalette.white,
+          padding: const EdgeInsets.all(10.0),
+          child: SizedBox(
+            height: 50,
+            width: double.infinity,
+            child: SimplePrimaryButton(
+              isLoading: _isLoading,
+              loadingWidgetColor: ColorsPalette.white,
+              label: LocaleKeys.saveAddress.tr(),
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  _formKey.currentState!.save();
+                  _saveAddress();
+                }
+              },
+            ),
           ),
         ),
       ),
@@ -329,7 +332,8 @@ class _AddNewAddressScreenState extends State<AddNewAddressScreen> {
         }
 
         if (snapshot.hasError) {
-          return Text('Error: ${snapshot.error}');
+          debugPrint('getStates error: ${snapshot.error}');
+          return Center(child: Text(LocaleKeys.genericErrorMessage.tr()));
         }
 
         final statesList = snapshot.data;

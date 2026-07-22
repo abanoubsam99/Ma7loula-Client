@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:form_builder_validators/localization/l10n.dart';
 import 'package:provider/provider.dart';
 import 'package:sizer/sizer.dart';
@@ -25,6 +26,20 @@ import 'firebase_options.dart';
 /// Aa@123456
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // التطبيق ياخد الشاشة كلها (edge-to-edge) على Android و iOS — من غير شريط أبيض
+  // تحت ولا لون مصمت ورا الـ status bar. لو خلفية الشاشة غامقة غيّر الـ Brightness.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    // Android:
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark, // light لو الخلفية غامقة
+    statusBarIconBrightness: Brightness.dark,
+    // iOS:
+    statusBarBrightness: Brightness.light, // light = نص داكن للستاتس بار في iOS
+  ));
+
   await EasyLocalization.ensureInitialized();
   EasyLocalization.logger.enableBuildModes = [];
   await Firebase.initializeApp(
